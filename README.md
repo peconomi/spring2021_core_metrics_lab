@@ -1,9 +1,14 @@
 # Core Metrics III Lab
 
-In tandem with [Ed Rubin](https://edrub.in)'s classes in [**Economics 607: Econometrics III**](https://github.com/edrubin/EC607S21) (Spring 2021), review the below material for Lab content. Be sure to prepare the basics before Lab sessions. This will include
+Prepared in support of [Ed Rubin](https://edrub.in)'s classes in [**Economics 607: Econometrics III**](https://github.com/edrubin/EC607S21) (Spring 2021). 
+Be sure to prepare the basics before Lab sessions. Please be aware of my contact details below. Be sure to install the below items as well. 
 
-**Lab Session**: Friday 12:30pm–1:30pm, Zoom ([See Canvas](https://canvas.uoregon.edu/courses/176672/external_tools/1449))
-**Office Hours**: Wednesday 1:00pm-2:00pm, Friday 1:30pm-2:30pm,  Zoom ([See Canvas](https://canvas.uoregon.edu/courses/176672/external_tools/1449))
+**Lab Session**: 
+- Friday 12:30pm–1:30pm, Zoom
+**Office Hours**: 
+- Wednesday 1:00pm-2:00pm, Zoom
+- Friday 1:30pm-2:30pm, Zoom
+**Email**: peconomi@uoregon.edu
 
 Prerequisite Installations
 
