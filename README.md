@@ -23,7 +23,7 @@ Slides will be posted after class. Use these resources to recap over what has be
 ### Week 1
 
 1. An introduction to R.
-1. Project management and packages.
+1. Project and package management.
 1. Markdown files and knitting. 
 1. Revisiting OLS. 
 
