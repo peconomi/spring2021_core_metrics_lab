@@ -20,7 +20,7 @@ Prerequisite Installations
 
 Slides will be posted after class. Use these resources to recap over what has been covered. If using the `Pull` feature, be sure to do so regularly before engaging with material. 
 
-### Week 1
+## Week 1
 
 1. An introduction to R.
 1. Project and package management.
