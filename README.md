@@ -5,9 +5,11 @@ Be sure to prepare the basics before Lab sessions. Please be aware of my contact
 
 **Lab Session**: 
 - Friday 12:30pm–1:30pm, Zoom
+
 **Office Hours**: 
 - Wednesday 1:00pm-2:00pm, Zoom
 - Friday 1:30pm-2:30pm, Zoom
+
 **Email**: peconomi@uoregon.edu
 
 Prerequisite Installations
