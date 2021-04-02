@@ -1,0 +1,375 @@
+---
+title: "R Basics and OLS"
+subtitle: "EC 607 Metrics, Tutorial 1"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: inverse, middle
+
+
+```{R, setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,
+  here, magrittr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+# A blank theme for ggplot
+theme_empty <- theme_bw() + theme(
+  line = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  plot.margin = structure(c(0, 0, -0.5, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_simple <- theme_bw() + theme(
+  line = element_blank(),
+  panel.grid = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text.x = element_text(size = 18, family = "STIXGeneral"),
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  # plot.margin = structure(c(0, 0, -1, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_math <- theme_void() + theme(
+  text = element_text(family = "MathJax_Math"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_serif <- theme_void() + theme(
+  text = element_text(family = "MathJax_Main"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes <- theme_void() + theme(
+  text = element_text(family = "Fira Sans Book"),
+  axis.title = element_text(size = 18),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = grey_light,
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_set(theme_gray(base_size = 20))
+# Column names for regression results
+reg_columns <- c("Term", "Est.", "S.E.", "t stat.", "p-Value")
+# Function for formatting p values
+format_pvi <- function(pv) {
+  return(ifelse(
+    pv < 0.0001,
+    "<0.0001",
+    round(pv, 4) %>% format(scientific = F)
+  ))
+}
+format_pv <- function(pvs) lapply(X = pvs, FUN = format_pvi) %>% unlist()
+# Tidy regression results table
+tidy_table <- function(x, terms, highlight_row = 1, highlight_color = "black", highlight_bold = T, digits = c(NA, 3, 3, 2, 5), title = NULL) {
+  x %>%
+    tidy() %>%
+    select(1:5) %>%
+    mutate(
+      term = terms,
+      p.value = p.value %>% format_pv()
+    ) %>%
+    kable(
+      col.names = reg_columns,
+      escape = F,
+      digits = digits,
+      caption = title
+    ) %>%
+    kable_styling(font_size = 20) %>%
+    row_spec(1:nrow(tidy(x)), background = "white") %>%
+    row_spec(highlight_row, bold = highlight_bold, color = highlight_color)
+}
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+# Prologue
+
+---
+name: schedule
+
+# Schedule
+
+## Today
+
+
+- More Basics
+- Projects, RMD, Knit
+- Package Management
+- Revisiting OLS
+
+## Upcoming
+
+- Dataframes, `dplyr`
+- Data Visualisation, `ggplot2`
+- Loops and Functions
+- Simulation, `furrr`
+- Empirical Approaches
+
+---
+
+layout: true
+
+# Install
+
+---
+
+Installing .mono[R] is fairly straightfoward, but it occasionally involves challenges for older computers.
+
+.hi-slate[Step 1:] Download ([r-project.org](https://www.r-project.org/)) and install .mono[R] .purple[for your operating system].
+
+.hi-slate[Step 2:] Download ([rstudio.com](https://www.rstudio.com/products/rstudio/download/#download)) and install .mono[RStudio] .orange[Desktop] .purple[for your operating system].
+
+.hi-slate[Optional:] Download ([LaTeX](https://www.latex-project.org/get/)) through preferred distribution.
+
+If there is enough demand, we can talk through setting up .hi-slate[Github] accounts and linking it with R. This will allow you to download lecture/tutorials slides from the [course website](https://github.com/edrubin/EC607S21) very easily. 
+
+---
+
+layout: true
+
+# More Basics
+
+---
+
+Building from Class:
+
+- Objects: Values, Functions, Matrices
+
+## Handy logical operators
+
+ - `==`: is equal to
+ - `!=`: is not equal to
+ - `>, <, >=, <=`
+ - `&`: and
+ - `|`: or
+ - `%in%` : in
+ - Need a "not in"? Define it for yourself: `%nin%` <- Negate(`%in%`)
+
+---
+
+<br>
+
+
+Examples:
+
+ - `country == "United States"`
+ - `country %in% c("United States", "Germany", "Brazil")`
+ - `country == "United States" | country == "Germany"`
+ - `pop > 1000000 & year == 1952`
+
+---
+
+## Vectors and Index
+
+Create a vector, a single row of 7 observations.
+
+```{R, Vector_Time}
+world.pop <- c(2525779,3026003,3691173,4449049,5320817,6127700,6916183)
+
+world.pop
+```
+
+Combine two vectors into a single row of 7 observations.
+
+```{R, Vector_Time2}
+pop.first <- c(2525779,3026003,3691173,4449049)
+pop.second <- c(5320817,6127700,6916183)
+
+pop.all <- c(pop.first, pop.second)
+
+pop.all
+```
+
+---
+
+## Vectors and Index
+
+```{R, Get 2nd Element}
+world.pop[2]
+
+world.pop[c(2,4)]
+
+world.pop_aug <- world.pop[-3]
+world.pop_aug
+```
+
+---
+
+## Summary Statistics
+
+.pull-left[
+```{R Summ Stat}
+length(world.pop)
+min(world.pop)
+max(world.pop)
+range(world.pop)
+```
+]
+--
+.pull-right[
+```{R Summ Stat_2}
+mean(world.pop)
+sum(world.pop)/length(world.pop)
+sd(world.pop)
+```
+]
+
+---
+
+layout: true
+
+# Project Management
+
+---
+
+## R-Markdown
+
+Getting off the ground: Start a new RStudio project that will hold all materials for this discussion section
+    + Create a folder for this class on your desktop: metrics.
+    + Inside that folder, make a folder for this discussion section: disc_sec
+    + From RStudio, navigate: File > New Project > New Directory > New Project
+    + Name your directory something like "metrics_discsec"
+    + Make it a subdirectory of "Desktop/metrics/disc_sec"
+    + Create the project!
+    + File > New File > R Markdown > Choose the HTML option and generate.
+    
+If you want a pdf of your .Rmd (like when you're submitting your assignments), select the arrow next to "Knit" and hit **"Knit to PDF"**. You'll need to install LaTeX on your computer to do this. RStudio should prompt you with instructions, but [this page](http://edrub.in/ARE212/latexKnitr.html) might be helpful too.
+    
+---
+
+layout: true
+
+# Packages
+
+---
+
+## e.g.; `dplyr` and `readr`
+
+Enter the following;
+- install.packages("dplyr")
+- install.packages("readr")
+- library(dplyr)
+- library(readr)
+
+An excellent shortcut for such is to use `Pacman`. 
+```{r pacman, echo=TRUE}
+## Load/install packages.
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(broom, tidyverse,
+  ggplot2, ggthemes, knitr, jtools, huxtable, estimatr, haven)
+  
+```
+
+
+---
+
+## Help and functions
+
+.hi[Q] How do we know which arguments a function requires/accepts?
+
+--
+
+.hi[A] `?`
+--
+ Meaning you can type `?matrix` into your .mono[R] console to find the help file associated with the functions/objects named `matrix`.
+
+--
+
+.hi[Double bonus:] Use `??matrix` to perform a fuzzy search for the term `matrix` in all of the help files.
+
+---
+
+## Example function: `matrix`
+
+.hi[Q] How do we know which arguments a function requires/accepts?
+
+.hi[A.sub[2]] .mono[RStudio] will also try to help you.
+- Type a name (_e.g._, `matrix`) into the console; .mono[RStudio] will show you some info about the function.
+- After you type the name and parentheses (_e.g._, `matrix()`), press .mono[tab], and .mono[RStudio] will show you a list of arguments for the function.
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-Slides-1.html", output = "Tutorial-Slides-1.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```

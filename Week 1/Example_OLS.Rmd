@@ -1,0 +1,116 @@
+---
+title: "Example_OLS"
+author: "Philip Economides"
+date: "4/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r package.load}
+# dataframes, visualization, matrix algebra, 
+
+if (!require("pacman")) install.packages("pacman") # package management tool 
+pacman::p_load(tidyverse, ggthemes, sandwich, pracma)
+
+```
+
+## OLS
+
+This is a example file for preparing OLS without using `lm`. 
+
+```{r ols.step1}
+
+#Generating Variables 
+X = rand(1,200)      # Random set of values between [0,1]
+e = rnorm(200)       # iid errors, mean zero
+X = c(X)             # Place X in vector form
+Y = c()              # Empty vector, fill with 'For Loop'
+
+for(i in 1:length(X)){
+  Y[i] = 5 + 0.5*X[i] + e[i]
+}
+
+
+plot(Y) # Observe dispersion of Y
+
+df = as_tibble(cbind(Y, X))  # Create a tibble (a data frame with class tbl_df)
+
+```
+
+
+
+```{r ols.function}
+
+# Create a function that repeats this exercise for varying sample sizes
+data.gen  = function(N){
+  
+  X = rand(1,N)
+  e = rnorm(N)       # iid errors, mean zero
+  X = c(X)
+  Y = c()
+  
+  for(i in 1:length(X)){
+    Y[i] = 5 + 0.5*X[i] + e[i]
+  }
+  
+  df = as_tibble(cbind(Y, X))
+  
+  P = lm(data=df, Y~X) %>% broom::tidy()
+  P = P$estimate[2]
+  
+  return(P)
+}
+
+
+# What occurs as we increase the sample?
+run.gen = lapply(1:1000, data.gen)
+ests = unlist(run.gen[10:1000])
+plot(ests)
+
+
+```
+
+
+
+```{r Manual.OLS}
+
+#### OLS function ####
+
+# Let's manually generate the OLS values and S.E. 
+data.gen.man  = function(N){
+  
+  X0 = rep(1,N)
+  X1 = c(rand(1,N))
+  X2 = c(rand(1,N))
+  X3 = c(rand(1,N))
+  e  = rnorm(N)
+  X = matrix(c(X0, X1, X2, X3), ncol=4, byrow=FALSE)
+  Y = c()
+  
+  for(i in 1:length(X1)){
+    Y[i] = 5 + 0.5*X1[i] + 7*X2[i] -2*X3[i] + e[i]
+  }
+  
+  df = as_tibble(cbind(Y, X0, X1,X2,X3))
+  
+  #lm(data=df, Y ~ . -1) %>% broom::tidy()
+  B = solve(t(X)%*%X)%*%(t(X)%*%Y)
+  
+  return(B)
+}
+
+# What occurs as we increase the sample?
+run.gen.man = lapply(11:500, data.gen.man)
+ests.man = matrix(unlist(run.gen.man), ncol=4, byrow=TRUE)
+plot(ests.man[,1],  ylab="X0")
+plot(ests.man[,2],  ylab="X1")
+plot(ests.man[,3],  ylab="X2")
+plot(ests.man[,4],  ylab="X3")
+
+
+# S.E's code will be provided upon assignment completion. 
+
+```

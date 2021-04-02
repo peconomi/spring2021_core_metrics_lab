@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>R Basics and OLS</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <link href="Tutorial-Slides-1_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-Slides-1_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-Slides-1_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# R Basics and OLS
+## EC 607 Metrics, Tutorial 1
+### Philip Economides
+### Spring 2021
+
+---
+
+class: inverse, middle
+
+
+
+
+
+
+# Prologue
+
+---
+name: schedule
+
+# Schedule
+
+## Today
+
+
+- More Basics
+- Projects, RMD, Knit
+- Package Management
+- Revisiting OLS
+
+## Upcoming
+
+- Dataframes, `dplyr`
+- Data Visualisation, `ggplot2`
+- Loops and Functions
+- Simulation, `furrr`
+- Empirical Approaches
+
+---
+
+layout: true
+
+# Install
+
+---
+
+Installing .mono[R] is fairly straightfoward, but it occasionally involves challenges for older computers.
+
+.hi-slate[Step 1:] Download ([r-project.org](https://www.r-project.org/)) and install .mono[R] .purple[for your operating system].
+
+.hi-slate[Step 2:] Download ([rstudio.com](https://www.rstudio.com/products/rstudio/download/#download)) and install .mono[RStudio] .orange[Desktop] .purple[for your operating system].
+
+.hi-slate[Optional:] Download ([LaTeX](https://www.latex-project.org/get/)) through preferred distribution.
+
+If there is enough demand, we can talk through setting up .hi-slate[Github] accounts and linking it with R. This will allow you to download lecture/tutorials slides from the [course website](https://github.com/edrubin/EC607S21) very easily. 
+
+---
+
+layout: true
+
+# More Basics
+
+---
+
+Building from Class:
+
+- Objects: Values, Functions, Matrices
+
+## Handy logical operators
+
+ - `==`: is equal to
+ - `!=`: is not equal to
+ - `&gt;, &lt;, &gt;=, &lt;=`
+ - `&amp;`: and
+ - `|`: or
+ - `%in%` : in
+ - Need a "not in"? Define it for yourself: `%nin%` &lt;- Negate(`%in%`)
+
+---
+
+&lt;br&gt;
+
+
+Examples:
+
+ - `country == "United States"`
+ - `country %in% c("United States", "Germany", "Brazil")`
+ - `country == "United States" | country == "Germany"`
+ - `pop &gt; 1000000 &amp; year == 1952`
+
+---
+
+## Vectors and Index
+
+Create a vector, a single row of 7 observations.
+
+
+```r
+world.pop &lt;- c(2525779,3026003,3691173,4449049,5320817,6127700,6916183)
+
+world.pop
+```
+
+```
+#&gt; [1] 2525779 3026003 3691173 4449049 5320817 6127700 6916183
+```
+
+Combine two vectors into a single row of 7 observations.
+
+
+```r
+pop.first &lt;- c(2525779,3026003,3691173,4449049)
+pop.second &lt;- c(5320817,6127700,6916183)
+
+pop.all &lt;- c(pop.first, pop.second)
+
+pop.all
+```
+
+```
+#&gt; [1] 2525779 3026003 3691173 4449049 5320817 6127700 6916183
+```
+
+---
+
+## Vectors and Index
+
+
+```r
+world.pop[2]
+```
+
+```
+#&gt; [1] 3026003
+```
+
+```r
+world.pop[c(2,4)]
+```
+
+```
+#&gt; [1] 3026003 4449049
+```
+
+```r
+world.pop_aug &lt;- world.pop[-3]
+world.pop_aug
+```
+
+```
+#&gt; [1] 2525779 3026003 4449049 5320817 6127700 6916183
+```
+
+---
+
+## Summary Statistics
+
+.pull-left[
+
+```r
+length(world.pop)
+```
+
+```
+#&gt; [1] 7
+```
+
+```r
+min(world.pop)
+```
+
+```
+#&gt; [1] 2525779
+```
+
+```r
+max(world.pop)
+```
+
+```
+#&gt; [1] 6916183
+```
+
+```r
+range(world.pop)
+```
+
+```
+#&gt; [1] 2525779 6916183
+```
+]
+--
+.pull-right[
+
+```r
+mean(world.pop)
+```
+
+```
+#&gt; [1] 4579529
+```
+
+```r
+sum(world.pop)/length(world.pop)
+```
+
+```
+#&gt; [1] 4579529
+```
+
+```r
+sd(world.pop)
+```
+
+```
+#&gt; [1] 1625004
+```
+]
+
+---
+
+layout: true
+
+# Project Management
+
+---
+
+## R-Markdown
+
+Getting off the ground: Start a new RStudio project that will hold all materials for this discussion section
+    + Create a folder for this class on your desktop: metrics.
+    + Inside that folder, make a folder for this discussion section: disc_sec
+    + From RStudio, navigate: File &gt; New Project &gt; New Directory &gt; New Project
+    + Name your directory something like "metrics_discsec"
+    + Make it a subdirectory of "Desktop/metrics/disc_sec"
+    + Create the project!
+    + File &gt; New File &gt; R Markdown &gt; Choose the HTML option and generate.
+    
+If you want a pdf of your .Rmd (like when you're submitting your assignments), select the arrow next to "Knit" and hit **"Knit to PDF"**. You'll need to install LaTeX on your computer to do this. RStudio should prompt you with instructions, but [this page](http://edrub.in/ARE212/latexKnitr.html) might be helpful too.
+    
+---
+
+layout: true
+
+# Packages
+
+---
+
+## e.g.; `dplyr` and `readr`
+
+Enter the following;
+- install.packages("dplyr")
+- install.packages("readr")
+- library(dplyr)
+- library(readr)
+
+An excellent shortcut for such is to use `Pacman`. 
+
+```r
+## Load/install packages.
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(broom, tidyverse,
+  ggplot2, ggthemes, knitr, jtools, huxtable, estimatr, haven)
+```
+
+
+---
+
+## Help and functions
+
+.hi[Q] How do we know which arguments a function requires/accepts?
+
+--
+
+.hi[A] `?`
+--
+ Meaning you can type `?matrix` into your .mono[R] console to find the help file associated with the functions/objects named `matrix`.
+
+--
+
+.hi[Double bonus:] Use `??matrix` to perform a fuzzy search for the term `matrix` in all of the help files.
+
+---
+
+## Example function: `matrix`
+
+.hi[Q] How do we know which arguments a function requires/accepts?
+
+.hi[A.sub[2]] .mono[RStudio] will also try to help you.
+- Type a name (_e.g._, `matrix`) into the console; .mono[RStudio] will show you some info about the function.
+- After you type the name and parentheses (_e.g._, `matrix()`), press .mono[tab], and .mono[RStudio] will show you a list of arguments for the function.
+
+---
+
+exclude: true
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
