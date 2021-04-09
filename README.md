@@ -29,8 +29,9 @@ Slides will be posted after class. Use these resources to recap over what has be
 1. Markdown files and knitting. 
 1. Revisiting OLS. 
 
-**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/5c3d121c238a5c0a72e9393797526b9764f0fbae/Week 1/Tutorial-Slides-1.html) |
-[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%201/Tutorial%20Slides%201.Rmd) |
+**Content:**<br>
+[.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/5c3d121c238a5c0a72e9393797526b9764f0fbae/Week 1/Tutorial-Slides-1.html) <br>|
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%201/Tutorial%20Slides%201.Rmd) <br>|
 [Example_Code](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%201/Example_OLS.Rmd)
 
 ## Week 2
