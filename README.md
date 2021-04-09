@@ -35,6 +35,17 @@ Slides will be posted after class. Use these resources to recap over what has be
 
 ## Week 2
 
+Dataframes: Using `dplyr`
+
+1. Recap on Example Code Week 1.
+1. Verbs.
+1. Merging. 
+1. Cleaning. 
+
+**Content:** [.html](https://raw.githack.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%202/Tutorial-2.html) |
+[.Rmd](https://raw.githack.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%202/Tutorial%202.Rmd) |
+[Example_Code](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week%202/Verbs_example.R)
+
 ## Week 3
 
 ## Week 4
