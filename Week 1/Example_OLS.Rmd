@@ -7,7 +7,6 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::knit_engines$set(julia = JuliaCall::eng_juliacall)
 ```
 
 ```{r package.load}
@@ -39,6 +38,8 @@ plot(Y) # Observe dispersion of Y
 
 df = as_tibble(cbind(Y, X))  # Create a tibble (a data frame with class tbl_df)
 
+lm(data=df, Y ~ X) %>% broom::tidy()
+
 ```
 
 
@@ -67,8 +68,8 @@ data.gen  = function(N){
 
 
 # What occurs as we increase the sample?
-run.gen = lapply(1:1000, data.gen)
-ests = unlist(run.gen[10:1000])
+run.gen = lapply(1:10000, data.gen)
+ests = unlist(run.gen[10:10000])
 plot(ests)
 
 
@@ -104,7 +105,7 @@ data.gen.man  = function(N){
 }
 
 # What occurs as we increase the sample?
-run.gen.man = lapply(11:500, data.gen.man)
+run.gen.man = lapply(11:10000, data.gen.man)
 ests.man = matrix(unlist(run.gen.man), ncol=4, byrow=TRUE)
 plot(ests.man[,1],  ylab="X0")
 plot(ests.man[,2],  ylab="X1")

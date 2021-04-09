@@ -1,0 +1,666 @@
+---
+title: "Dataframes: Using dplyr"
+subtitle: "EC 607 Metrics, Tutorial 2"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: inverse, middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+# A blank theme for ggplot
+theme_empty <- theme_bw() + theme(
+  line = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  plot.margin = structure(c(0, 0, -0.5, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_simple <- theme_bw() + theme(
+  line = element_blank(),
+  panel.grid = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text.x = element_text(size = 18, family = "STIXGeneral"),
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  # plot.margin = structure(c(0, 0, -1, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_math <- theme_void() + theme(
+  text = element_text(family = "MathJax_Math"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_serif <- theme_void() + theme(
+  text = element_text(family = "MathJax_Main"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes <- theme_void() + theme(
+  text = element_text(family = "Fira Sans Book"),
+  axis.title = element_text(size = 18),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = grey_light,
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_set(theme_gray(base_size = 20))
+# Column names for regression results
+reg_columns <- c("Term", "Est.", "S.E.", "t stat.", "p-Value")
+# Function for formatting p values
+format_pvi <- function(pv) {
+  return(ifelse(
+    pv < 0.0001,
+    "<0.0001",
+    round(pv, 4) %>% format(scientific = F)
+  ))
+}
+format_pv <- function(pvs) lapply(X = pvs, FUN = format_pvi) %>% unlist()
+# Tidy regression results table
+tidy_table <- function(x, terms, highlight_row = 1, highlight_color = "black", highlight_bold = T, digits = c(NA, 3, 3, 2, 5), title = NULL) {
+  x %>%
+    tidy() %>%
+    select(1:5) %>%
+    mutate(
+      term = terms,
+      p.value = p.value %>% format_pv()
+    ) %>%
+    kable(
+      col.names = reg_columns,
+      escape = F,
+      digits = digits,
+      caption = title
+    ) %>%
+    kable_styling(font_size = 20) %>%
+    row_spec(1:nrow(tidy(x)), background = "white") %>%
+    row_spec(highlight_row, bold = highlight_bold, color = highlight_color)
+}
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+# Prologue
+
+---
+name: schedule
+
+# Schedule
+
+## Today
+
+Dataframes, `dplyr`
+- Verbs
+- Merge
+- Clean
+
+## Upcoming
+- Data Visualisation, `ggplot2`
+- Loops and Functions
+- Simulation, `furrr`
+- Empirical Approaches
+
+---
+
+layout: true
+
+# Introduction
+
+---
+
+## Loading/Filtering Data
+
+Usually when using dataframes, we need to get our hands dirty. We will evaluate our options with `base` functions before using functions from `dplyr`.
+
+--
+
+It may well be the case that there is far more data available than we will need. Three options; 
+
+- Cherry pick variables from the source, 
+- Trim variables from the file, 
+- Load entire file on R and trim down.
+
+---
+
+```{r}
+p_load(gapminder)
+head(gapminder)
+```
+
+Let's see some common `dplyr` functions using the gapminder dataframe. 
+
+---
+
+To generate a variable in your dataframe use `%>% mutate()`
+```{r eval=FALSE, include=TRUE}
+data_lnGDP <- gapminder %>% mutate( GDP = pop*gdpPercap,
+                                    lnGDP = log(GDP)) 
+```
+
+To filter out particular rows from your dataframe use `%>% filter()`
+```{r eval=FALSE, include=TRUE}
+EurAsia <- data_lnGDP %>% filter(continent %in% c("Asia", "Europe"))
+# How many countries did I remove?
+length(unique(gapminder$country)) - length(unique(EurAsia$country))
+```
+
+To summarize by groups, combine `%>% group_by()` and `%>% summarize`<br>
+`desc` places `arrange` variables in descending order
+```{r eval=FALSE}
+sum_EurAsia <- EurAsia %>% group_by(country) %>% summarise(
+    avg_pop = mean(pop),avg_gdp = mean(GDP)) %>% arrange(desc(avg_gdp))
+sum_EurAsia
+```
+
+
+
+---
+
+layout: true
+
+# Merging
+
+---
+
+## Binding
+
+#### Binding vectors
+
+Consider `rbind` and `cbind`: they treat the inputs as either rows or columns, and then binds them together.
+
+```{r bind_vector_data, include=F}
+name <- c("Pam", "George", "Sandy")
+favorite <- c("Glazed Yams", "Leeks", "Daffodils")
+
+# What are the dimensions of these?
+rbind(name, favorite)
+cbind(name, favorite)
+```
+
+```{r bind_vector_data1, eval=F}
+name <- c("Pam", "George", "Sandy")
+favorite <- c("Glazed Yams", "Leeks", "Daffodils")
+
+# What are the dimensions of these?
+rbind(name, favorite)
+cbind(name, favorite)
+```
+
+--
+
+`rbind` yields a 2x3 
+
+--
+
+`cbind` yields a 3x2
+
+---
+
+## Binding data frames
+
+You can also use `rbind` and `cbind` to bind data frames.
+```{r bind_df_data}
+# Create some data frames for us to work with
+name_fav <- cbind(name, favorite)
+name_work <- cbind(name, work = c("Bus Driver", NA, "Shopkeeper"))
+name_fav
+name_work
+```
+
+---
+
+## Binding data frames
+
+`cbind` treats the objects as columns, so they're put side-by-side:
+$$\begin{bmatrix}
+  A, B \\
+\end{bmatrix}$$
+
+```{r cbind_data_frames}
+cbind(name_fav, name_work)
+```
+
+---
+
+## Binding data frames
+
+`rbind` treats the objects as rows, so they're stacked:
+$$\begin{bmatrix}
+  A \\
+  B \\
+\end{bmatrix}$$
+
+```{r rbind_data_frames}
+rbind(name_fav, name_work) #notice how rbind doesn't care about column names
+```
+
+---
+
+## Binding data frames
+
+`dplyr` has very similar functions `bind_rows` and `bind_cols`. They work best with tibbles, so we'll go ahead and create tibble versions of our data.
+
+```{r as_tibbles}
+name_fav_tib <- as_tibble(name_fav)
+name_work_tib <- as_tibble(name_work)
+```
+
+--
+
+.pull-left[
+```{r show, echo=FALSE}
+name_fav_tib
+```
+]
+
+.pull-right[
+```{r show2, echo=FALSE}
+name_work_tib
+```
+]
+
+---
+
+## Binding data frames
+.pull-left[
+```{r bind_cols}
+bind_cols(name_fav_tib, name_work_tib)
+```
+]
+
+.pull-right[
+```{r bind_rows}
+bind_rows(name_fav_tib, name_work_tib)
+```
+]
+
+---
+
+## Set Operations
+
+The `dplyr` set operation functions are `union`, `intersect`, and `setdiff`. These set operations treat observations (rows) as if they were set elements.
+
+```{r set_op_data}
+table_1 <- tribble(
+  ~"name", ~"favorites",
+  #------|--------
+  "Pam", "Glazed Yams",
+  "George", "Leeks",
+  "Sandy", "Daffodils"
+)
+
+table_2 <- tribble(
+  ~"name", ~"favorites",
+  #------|--------
+  "Pam", "Glazed Yams",
+  "Gus", "Fish Tacos"
+)
+```
+
+---
+
+## Set Operations
+
+Create tibbles using an easier to read row-by-row layout. This is useful for small tables of data where readability is important
+
+.pull-left[
+```{r tribble1}
+table_1
+```
+]
+
+.pull-right[
+```{r tribble2}
+table_2
+```
+]
+
+---
+
+## Set Operations
+
+`union` will give you all the observations (rows) that appear in either or both tables. This is similar to `bind_rows`, but `union` will remove duplicates.
+
+```{r set_union}
+union(table_1, table_2)
+```
+
+---
+
+## Set Operations
+
+`intersect` will give you only the observations that appear both in `table_1` and in `table_2`: in the intersection of the two tables.
+
+```{r set_intersect}
+intersect(table_1, table_2)
+```
+
+---
+
+## Set Operations
+
+`setdiff(table_1, table_2)` gives you all the observations in table_1 that are not in table_2.
+
+```{r set_setdiff}
+setdiff(table_1, table_2)
+```
+
+---
+
+## Mutating joins
+
+Mutating joins take the first table and add columns from the second table. There are 3 mutating joins: `left_join`, `inner_join`, and `full_join`.
+
+```{r mutating_join_data}
+# We'll create 2 new data frames to learn mutating joins:
+
+favorites <- tribble(
+  ~"name", ~"fav",
+  #------|--------
+  "Pam", "Glazed Yams",
+  "George", "Leeks",
+  "Sandy", "Daffodils"
+)
+
+jobs <- tribble(
+  ~"name", ~"work",
+  #------|--------
+  "Pam", "Bus Driver",
+  "Gus", "Bartender",
+  "Sandy", "Shopkeeper"
+)
+```
+
+---
+
+## Mutating joins
+
+`left_join(x, y)` takes x and adds the columns of y where the **key** matches. The **key** is a variable that shows up in both tables and you'll specify it with `by = "key_variable"`.
+
+.pull-left[
+```{r left_join}
+left_join(favorites, jobs, by = "name")
+```
+]
+
+.pull-right[
+```{r Example, eval=F}
+# What will be the output?
+left_join(jobs, favorites, by = "name")
+```
+]
+
+---
+
+## Mutating joins
+
+`left_join(x, y)` takes x and adds the columns of y where the **key** matches. The **key** is a variable that shows up in both tables and you'll specify it with `by = "key_variable"`.
+
+.pull-left[
+```{r left_join_1}
+left_join(favorites, jobs, by = "name")
+```
+]
+
+.pull-right[
+```{r Example_1}
+# What will be the output?
+left_join(jobs, favorites, by = "name")
+```
+]
+
+---
+
+## Mutating joins
+
+`inner_join(x, y)` takes the **intersect** of the key variable and adds columns from both tables.
+```{r inner_join}
+inner_join(favorites, jobs, by = "name")
+```
+
+---
+
+## Mutating joins
+
+`full_join(x, y)` takes the **union** of the key variable and adds columns from both tables.
+```{r full_join}
+full_join(favorites, jobs, by = "name")
+```
+
+---
+
+## Filtering joins
+
+Unlike mutating joins, filtering joins will only preserve data from the first table. The observations that are kept depends on the second table. dplyr has 2 types of filtering joins: `semi_join` and `anti_join`.
+
+`semi_join(x, y)` keeps all rows in x where the key matches in y.
+
+```{r semi_join}
+semi_join(favorites, jobs, by = "name")
+```
+
+---
+
+## Filtering joins
+
+`anti_join(x, y)` keeps rows in x as long as the key **doesn't** have a match in y.
+```{r anti_join}
+anti_join(favorites, jobs, by = "name")
+```
+
+---
+
+## Pivoting
+
+`pivot_wider()` and `pivot_longer()` aren't two-table topics, but they are useful data manipulation tools in the tidyverse.
+
+```{r pivot_data}
+prefs <- tribble(
+  ~"name", ~"preference", ~"item",
+  #|-----|--------------|--------|
+  "Pam", "loves", "Glazed Yams",
+  "Pam", "likes", "Daffodils",
+  "Pam", "hates", "Horseradish",
+  "George", "loves", "Leeks",
+  "George", "likes", "Hazelnuts",
+  "George", "hates", "Dandelions"
+)
+```
+
+Take a look at the data. There are 2 people (Pam and George). Each person has one "love", one "like", and one "hate" item.
+
+---
+
+## Pivoting
+
+Suppose instead we wanted our data in a different format. What if we had 4 columns instead of 3: `name`, the thing that person `loves`, the thing that person `likes`, and the thing that person `hates`. We'd only need 2 rows (Pam and George).
+
+We want our data to go from having 3 columns to having 4, so we know we can use `tidyr::pivot_wider`.
+
+```{r pivot_wider}
+pivot_wider(prefs, names_from = preference, values_from = item)
+```
+
+```{r pivot_wider_1, include=FALSE}
+prefs_wide <- pivot_wider(prefs, names_from = preference, values_from = item)
+```
+
+---
+
+## Pivoting
+
+Now suppose we want to reverse that operation!
+We'll start with `prefs_wide` and pivot in to get `prefs` again.
+
+`pivot_longer()` has these arguments: 
+
+ - **cols**: columns to pivot into the longer format. For us, that will be the columns `loves`, `likes`, and `hates`. We can also say columns 2 through 4: `cols = 2:4`.
+ - **names_to**: A string. What we should call the new column that holds those old column names: `loves`, `likes`, `hates`: `names_to = "preferences"`
+ - **values_to**: A string. what we should call the values that are now being pivoted in? `Glazed Yams`, `Daffodils`, etc. So we want `values_to = "items"`
+ 
+ 
+---
+
+## Pivoting
+
+```{r pivot_longer}
+prefs_wide %>% pivot_longer(cols = 2:4, names_to = "preferences", values_to = "items")
+```
+
+
+
+
+---
+layout: true
+
+# Cleaning
+
+---
+
+Outliers may also be present in data. In macroeconomics, one may be trying to assess mean and variance of real gross domestic product in the United States.
+
+```{r DataLoad, fig.width = 7, fig.height = 4, echo=FALSE}
+#Data Load
+library(readxl)
+GDPC1 <- read_excel("GDPC1.xls", skip = 10)
+
+fGDP <- diff(GDPC1$GDPC1)
+fGDP <- c(NA, fGDP)
+GDPC1 <- cbind(GDPC1, fGDP)
+
+#GDP_plot <- ggplot(GDPC1[2:245,]) +
+GDP_plot <- ggplot(GDPC1) +
+  geom_line(mapping=aes(x=observation_date, y=fGDP), color="blue", linetype = 1, size = 1) +
+geom_smooth(mapping=aes(x=observation_date, y=fGDP))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_pander( base_size = 12) + xlab("Year") + ylab("Change in Real Gross Domestic Product, USD BN") +
+  ggtitle("Real Gross Domestic Product, First-Difference, Quarterly")
+GDP_plot
+```
+
+---
+```{r clean, echo=FALSE}
+GDP_plot <- ggplot(GDPC1[2:245,]) +
+  geom_line(mapping=aes(x=observation_date, y=fGDP), color="blue", linetype = 1, size = 1) +
+geom_smooth(mapping=aes(x=observation_date, y=fGDP))+
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme_pander( base_size = 12) + xlab("Year") + ylab("Change in Real Gross Domestic Product, USD BN") +
+  ggtitle("Real Gross Domestic Product, First-Difference, Quarterly")
+GDP_plot
+```
+
+---
+
+Consider the 1.5 IQR rule of thumb. This is used to identify mild outliers. For extreme outliers only, shift to a 3 IQR.
+
++ IQR = 75th Percentile Value - 25th Percentile Value 
++ Lower Outlier Boundary = 25th - 1.5*IQR
++ Upper Outlier Boundary = 75th + 1.5*IQR
+
+```{r IQR, eval=F}
+#Extreme Outliers identified and cleaned
+Phase1 <- summary(data$columnX)
+OutLower <- Phase1[2]-3*(Phase1[5]-Phase1[2])
+OutHigher <- Phase1[5]+3*(Phase1[5]-Phase1[2])
+
+house_w <- filter(house, columnX > OutLower)
+house_w <- filter(house, columnX < OutHigher)
+```
+
+See example of extreme outlier cleaning in Davies, R., & T., Jeppesen, 2015 *"Export mode, firm heterogeneity, and source country characteristics*, Review of World Economics, Vol. 151(2), pp 169-195.
+
+---
+
+## Resources
+
+* [Datacamp](https://learn.datacamp.com/courses/joining-data-with-dplyr-in-r): Joining data with dplyr 
+* [RStudio dplyr Cheat Sheet](https://rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf)
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-Slides-4.html", output = "Tutorial-Slides-4.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
