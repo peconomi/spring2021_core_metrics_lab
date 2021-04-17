@@ -1,0 +1,691 @@
+---
+title: "Visualization: Using ggplot2"
+subtitle: "EC 607 Metrics, Tutorial 3"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{r CSS, eval=FALSE, include=FALSE}
+#css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+```
+
+```{R, setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,
+  here, magrittr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+# A blank theme for ggplot
+theme_empty <- theme_bw() + theme(
+  line = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  plot.margin = structure(c(0, 0, -0.5, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_simple <- theme_bw() + theme(
+  line = element_blank(),
+  panel.grid = element_blank(),
+  rect = element_blank(),
+  strip.text = element_blank(),
+  axis.text.x = element_text(size = 18, family = "STIXGeneral"),
+  axis.text.y = element_blank(),
+  axis.ticks = element_blank(),
+  plot.title = element_blank(),
+  axis.title = element_blank(),
+  # plot.margin = structure(c(0, 0, -1, -1), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_math <- theme_void() + theme(
+  text = element_text(family = "MathJax_Math"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes_serif <- theme_void() + theme(
+  text = element_text(family = "MathJax_Main"),
+  axis.title = element_text(size = 22),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = "grey70",
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_axes <- theme_void() + theme(
+  text = element_text(family = "Fira Sans Book"),
+  axis.title = element_text(size = 18),
+  axis.title.x = element_text(hjust = .95, margin = margin(0.15, 0, 0, 0, unit = "lines")),
+  axis.title.y = element_text(vjust = .95, margin = margin(0, 0.15, 0, 0, unit = "lines")),
+  axis.line = element_line(
+    color = grey_light,
+    size = 0.25,
+    arrow = arrow(angle = 30, length = unit(0.15, "inches")
+  )),
+  plot.margin = structure(c(1, 0, 1, 0), unit = "lines", valid.unit = 3L, class = "unit"),
+  legend.position = "none"
+)
+theme_set(theme_gray(base_size = 20))
+# Column names for regression results
+reg_columns <- c("Term", "Est.", "S.E.", "t stat.", "p-Value")
+# Function for formatting p values
+format_pvi <- function(pv) {
+  return(ifelse(
+    pv < 0.0001,
+    "<0.0001",
+    round(pv, 4) %>% format(scientific = F)
+  ))
+}
+format_pv <- function(pvs) lapply(X = pvs, FUN = format_pvi) %>% unlist()
+# Tidy regression results table
+tidy_table <- function(x, terms, highlight_row = 1, highlight_color = "black", highlight_bold = T, digits = c(NA, 3, 3, 2, 5), title = NULL) {
+  x %>%
+    tidy() %>%
+    select(1:5) %>%
+    mutate(
+      term = terms,
+      p.value = p.value %>% format_pv()
+    ) %>%
+    kable(
+      col.names = reg_columns,
+      escape = F,
+      digits = digits,
+      caption = title
+    ) %>%
+    kable_styling(font_size = 20) %>%
+    row_spec(1:nrow(tidy(x)), background = "white") %>%
+    row_spec(highlight_row, bold = highlight_bold, color = highlight_color)
+}
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+name: schedule
+
+# Schedule
+
+## Today
+
+- An introduction to visualization.
+- How to build a plot.
+- Plot components.
+- Experiment with `ggplot2`.
+- `ggplot2` resources.
+
+---
+layout: true
+
+# Introduction
+---
+name: basics
+
+## What is it?
+
+`ggplot2` is a package included in the `tidyverse`. It lets you easily make plots that are extremely customizable through the layering of graphics. 
+
+```{r ggplot_layers, eval = F}
+#Load your Packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(gapminder, tidyverse)
+
+summary(gapminder)
+
+# Layered graphics: scatterplot + linear model
+ggplot(gapminder, mapping = aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+--
+This section is based on a paper [A Layered Grammar of Graphics](https://vita.had.co.nz/papers/layered-grammar.pdf) by Hadley Wickham, one of the creators of ggplot2.
+
+---
+layout: true
+
+# Basic Plot
+
+---
+## How to build a plot
+
+First we need some data.
+
+`ggplot2` requires that data be in the form of a data frame. If your data is not, sometimes you can coerce: `as_data_frame()` actually makes your data a tibble (equivalently, as_tibble()), which is the tidyverse's updated version of a data frame.
+
+```{r ggplot_simple_data}
+# A tribble is just a transposed tibble: for convenience, I've decided 
+#to define it row-wise instead of column-wise.
+
+simple_data <- tribble(
+  ~"A", ~"B", ~"C", ~"D",
+  #---|-----|-----|-----
+  2, 3, 4, "b",
+  1, 2, 1, "b",
+  4, 5, 15, "a",
+  9, 10, 80, "a")
+```
+--
+This dataset has 4 variables (A, B, C, D), and 4 observations of those variables (4 rows). 
+
+---
+
+## A basic plot
+
+Let's make a scatterplot of A versus C, and draw different shapes for realizations of D. When we're building this plot, we're hoping that behind the scenes, R creates a new dataset with these changes:
+
+* Map the x-position to A
+* Map the y-position to C
+* Map shape to D
+* Remove any variables that don't appear in the plot
+
+These mappings (x-position, y-position, and shape) are examples of **aesthetics**, `aes` for short.
+
+---
+
+Behind the scenes, `ggplot2` will take our `simple_data` and create a new dataset to help build our plot:
+
+```{r ggplot_simple_data_map, eval = F}
+simple_data_mapping <- tribble(
+    ~"x", ~"y", ~"Shape",
+    #---|-----|---------
+    2, 4, "triangle",
+    1, 1, "triangle",
+    4, 15, "circle",
+    9, 80, "circle"
+)
+
+# Compare `simple_data` to `simple_data_mapping`:
+simple_data
+simple_data_mapping
+
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D))
+
+# Note: inside a `ggplot`, we use `+` instead of `%>%`.
+```
+
+---
+
+```{r CrashParty, fig.width = 6, fig.height = 4}
+
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D))
+
+```
+
+---
+
+layout: true
+
+#Faceting
+
+---
+
+
+
+- Notice, `ggplot` mapped "a" to a circle and "b" to a triangle. This transformation is the responsibility of **scales**. So if you want the mapping to be different, specify a different scale.
+
+- We can create lots of different types of plots using this same basic specification. For example, if we drew lines instead of points, we would get a line plot. 
+
+- Or, if we used bars, we would get a bar plot. Bars, lines, and points are all examples of **geometric objects**, `geom` for short. 
+
+- `ggplot2` has a [ton of options for geoms](https://ggplot2.tidyverse.org/reference/), but we'll be using `geom_point`, `geom_line`, `geom_bar`, etc.
+
+- Let's try more complicated plot: Faceting.
+
+---
+
+Faceting your plot into groups specified by D. 
+
+Each value of D (a or b) will be displayed on a different panel.
+
+```{r ggplot_facet, fig.width = 6, fig.height = 3.5}
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D)) + 
+  facet_wrap(~D)
+
+# Notice that shape = D is redundant: we're displaying different values for D in 
+# different panels, so it's a little silly to also emphasize different values for D with shape.
+```
+
+---
+
+For example, in our `gapminder`,`log(gdpPercap)` has a high correlation with `lifeExp` across continents.
+
+```{r ggplot_facet_ex, fig.width=6, fig.height=3.5}
+library(gapminder)
+ggplot(gapminder) + 
+  geom_point(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  facet_wrap(~continent)
+```
+
+---
+
+layout: true
+
+#Plot components
+
+---
+
+Components that make up a plot:
+
+* data and aesthetic mappings
+* geometric objects
+* scales
+* facet specification
+* statistical transformations
+* coordinate system
+
+Together, the data, mappings, statistical transformation, and geometric object form a **layer**. A plot can have many layers. For example, we can overlay a scatterplot with a fitted line. Or you can draw two curves on top of each other from different data sets.
+
+---
+
+A **statistical transformation** (`stat` for short) typically summarizes the data in some manner. One useful stat is the smoother: it calculates the mean of y conditional on x, subject to some restriction that ensures smoothness.
+
+```{r ggplot_stat_smooth, fig.height=3, fig.width=4.5}
+ggplot(gapminder, mapping = aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point(alpha=0.5) +
+  geom_smooth()
+```
+
+---
+
+Another example of statistical transformation: aggregation of `geom_histogram`. Only specify x variable. R creates the y variable by dividing the range of x by the number of `bins` you specify (30 by default), and then counting number of observations in each bin.
+
+```{r ggplot_stat_hist, fig.height=3.3}
+# Default bins is 30
+ggplot(gapminder, mapping = aes(x = gdpPercap)) + 
+  geom_histogram()
+```
+
+---
+
+By specifying the number of `bins` we can introduce more detail into the histogram.
+
+--
+
+```{r ggplot_stat_histband, fig.height=3.5}
+# Specify binwidth to be 1,000 (or `bins = 50`, or `breaks` = ...)
+ggplot(gapminder, mapping = aes(x = gdpPercap)) + 
+  geom_histogram(binwidth = 1000)
+```
+
+--
+
+To add dollar signs and commas, we'll need `scales` package. 
+
+---
+
+layout: true
+
+#Scale
+
+---
+
+Every aesthetic mapping has a scale.
+--
+
+* Shape: circle, square, triangle, etc
+* Size: how big or small should the points be?
+* Color: the default color scheme in ggplot2 picks evenly spaced hues around the hcl (Hue-Chroma-Luminance) color wheel starting from 15. So if you have 3 categories for variables, you'll get different colors compared to if you have 5. If your variable is continuous, your scale is a path in the HCL color space.
+
+--
+
+Here are some legends associated with [scales](https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcRy3CB_vS1GJ51iMmKBY6JCMD0Ev1GpcdIAvnRtSxRiaK_k-i-K&usqp=CAU)
+
+I'll also add some links in order to access a [color palette generator](https://learnui.design/tools/data-color-picker.html) and [color encyclopedia](https://www.colorhexa.com/). 
+
+---
+
+```{r ggplot_fixed_val, fig.height=5}
+# If you want to set an aesthetic of your plot to be some fixed value,
+# make that specification outside the aesthetic mapping:
+
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(color = "blue")
+```
+
+
+---
+Lets colour by groups!
+
+```{r ggplot_fixed_val_ex, fig.height=5}
+# Make point color = continent, size = 2, and shape = "k"
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point(aes(color = continent), size = 2, shape = "k")
+```
+
+
+---
+
+layout:true
+
+# Exploring ggplot2
+
+---
+
+Consider the following base code. 
+
+```{r base-plot, eval = F}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdp_per_cap), y = life_exp)) +
+  geom_point(aes(color = continent))
+```
+
+How can we...
+
+- Add a title and re-name the legend
+- Change the color scale from the default
+- Adjust transparency of points
+- Represent population by point `size`
+- Change the geom from `geom_point` to `geom_text`
+- Make a line plot showing how lifeExp has changed over time for a few countries
+- Make a bar plot or histogram to see data frequency
+
+---
+
+**1. Add a title and re-name the legend:**
+
+Add: `labs(title = "___", color = "___")`.
+
+```{r plot-titles, fig.height=4}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  labs(title = "GDP per capita predicts life expectancy", color = element_blank())
+```
+
+---
+
+**2. Change the color scale from the default. Options:**
+
+Add `scale_color_viridis_d()` (d for discrete, c for continuous variables). Contrasts are preserved when printing in black and white, colorblind-safe.
+  
+```{r plot-viridis, fig.height=3.8}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) + scale_color_viridis_d()
+```
+
+---
+
+Use Wes Anderson movie color palettes with the package `wesanderson`. Check them out for yourself on [github](https://github.com/karthik/wesanderson). 
+
+```{r plot-wesanderson, fig.height=3.8}
+p_load(wesanderson)
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  scale_color_manual(values=wesanderson::wes_palette(n=5, name= "FantasticFox1"))
+```
+
+---
+
+Pick your own, `scale_color_manual(values = c("__", "__", ...))`. Pick 5 colors for 5 continents in the data.
+  
+```{r plot-manual-colors, fig.height=3.8}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  scale_color_manual(values = c("chartreuse3", "dodgerblue2", 
+                                "maroon3", "gold2", "wheat1"))
+```
+
+---
+
+**3. Adjust transparency of points** 
+
+Do so by setting `alpha` to a fixed value between 0 and 1 (outside the aesthetic mapping). This helps when there's overplotting like below.
+
+```{r plot-alpha, fig.height=3.8}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent), alpha = .3)
+```
+
+---
+
+**4. Represent population by point `size`** 
+
+Specify `size = pop` in the aesthetic mapping 
+
+```{r plot-point-size, fig.height=4.5}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent, size = pop))
+```
+
+---
+
+```{r plot-point-format, fig.height=4.5}
+gapminder %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent, size = pop), alpha=0.5)+
+  scale_size_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6))+
+  xlab("Log, GDP per Capita")+ ylab("Life Expectancy")+
+  labs(size="Population", colour="Continent")
+```
+
+---
+
+**5. Change the geom from `geom_point` to `geom_text`.** 
+
+This creates a scatterplot with the name of the country instead of points! Use `size = pop` inside the aesthetic mapping so you're sure to be able to read large country names.
+
+```{r plot-geom-text, eval=FALSE, fig.height=4.3, include=TRUE}
+gapminder %>% filter(year == 2007) %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_text(mapping = aes(label = country, size = pop, color = continent))
+```
+
+---
+
+```{r plot-geom-txt, echo=FALSE}
+gapminder %>% filter(year == 2007) %>%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_text(mapping = aes(label = country, size = pop, color = continent))
+```
+
+
+---
+
+**6. Make a line plot showing how life_exp has changed over time for a few countries**
+
+Use `geom_line`. Let x = year and y = life expectancy.
+
+Re-order to match plot, `color = fct_reorder2(country, year, lifeExp, .fun = last2)`. 
+
+`.fun = last2` to specify order by last 2 values in our data.
+
+--
+
+```{r plot-line, fig.height=4.8, eval=F}
+p_load(forcats)
+gapminder %>%
+  filter(country %in% c("Singapore", "Spain", "Ireland", 
+                        "Italy", "Israel", "Korea, Rep.")) %>%
+  ggplot(mapping = aes(x = year, y = lifeExp, 
+           color = fct_reorder2(country, year, lifeExp, .fun = last2))) +
+  geom_line() + 
+  scale_colour_discrete("Countries")
+```
+
+---
+
+```{r plot-line_show, echo=F}
+p_load(forcats)
+gapminder %>%
+  filter(country %in% c("Singapore", "Spain", "Ireland", "Italy", "Israel", "Korea, Rep.")) %>%
+  ggplot(mapping = aes(x = year, y = lifeExp, color = fct_reorder2(country, year, lifeExp, .fun = last2))) +
+  geom_line()+
+  scale_colour_discrete("Countries")
+```
+
+---
+
+**7. Make a bar plot or histogram to see data frequency**
+
+Bar plots: categorical data, histograms: continuous data.<br> 
+Reorder bars according to frequency: `x = fct_infreq(continent)`.
+  
+```{r plot-bar, fig.height=3.8}
+gapminder %>% ggplot(mapping = aes(x = fct_infreq(continent))) +
+  geom_bar(aes(fill = continent)) + xlab(NULL) + 
+  theme(legend.position = "none")
+```
+
+ 
+---
+  
+**Histogram:** Compare the number of countries in bins of income in 2007. Add an aesthetic mapping that colors histogram by continent. Use `fill = continent` instead of `color = continent`.
+
+```{r plot-histogram, fig.height=3.8}
+gapminder %>%
+  filter(year == 2007) %>%
+  ggplot(mapping = aes(x = gdpPercap)) +
+  geom_histogram(aes(fill = continent), bins = 10)
+```
+
+---
+
+`ggplot2` resources 
+
+* [A Layered Grammar of Graphics](https://vita.had.co.nz/papers/layered-grammar.pdf) 
+
+* [R4DS](https://r4ds.had.co.nz/data-visualisation.html)
+
+* [Datacamp](https://learn.datacamp.com/courses/data-visualization-with-ggplot2-1)
+
+Thank you!
+
+---
+
+```{R, statistical languages, eval = F, fig.height = 6, fig.width = 9, dev = "svg"}
+pop_df <- data.frame(
+  lang = c("SQL", "Python", "R", "SAS", "Matlab", "SPSS", "Stata"),
+  n_jobs = c(107130, 66976, 48772, 25644, 11464, 3717, 1624),
+  free = c(T, T, T, F, F, F, F)
+)
+pop_df %<>% mutate(lang = lang %>% factor(ordered = T))
+# Plot it
+ggplot(data = pop_df, aes(x = lang, y = n_jobs, fill = free)) +
+geom_col() +
+geom_hline(yintercept = 0) +
+aes(x = reorder(lang, -n_jobs), fill = reorder(free, -free)) +
+xlab("Statistical language") +
+scale_y_continuous(label = scales::comma) +
+ylab("Number of jobs") +
+ggtitle(
+  "Comparing statistical languages",
+  subtitle = "Number of job postings on Indeed.com, 2019/01/06") +
+scale_fill_manual(
+  "Free?",
+  labels = c("True", "False"),
+  values = c(red_pink, "darkslategray")) +
+theme_pander(base_size = 17) +
+theme(legend.position = "bottom")
+```
+
+---
+
+```{R statistical_languages_1, echo = F, fig.height = 6, fig.width = 9, dev = "svg"}
+# The popularity data
+pop_df <- data.frame(
+  lang = c("SQL", "Python", "R", "SAS", "Matlab", "SPSS", "Stata"),
+  n_jobs = c(107130, 66976, 48772, 25644, 11464, 3717, 1624),
+  free = c(T, T, T, F, F, F, F)
+)
+pop_df %<>% mutate(lang = lang %>% factor(ordered = T))
+# Plot it
+ggplot(data = pop_df, aes(x = lang, y = n_jobs, fill = free)) +
+geom_col() +
+geom_hline(yintercept = 0) +
+aes(x = reorder(lang, -n_jobs), fill = reorder(free, -free)) +
+xlab("Statistical language") +
+scale_y_continuous(label = scales::comma) +
+ylab("Number of jobs") +
+ggtitle(
+  "Comparing statistical languages",
+  subtitle = "Number of job postings on Indeed.com, 2019/01/06"
+) +
+scale_fill_manual(
+  "Free?",
+  labels = c("True", "False"),
+  values = c(red_pink, "darkslategray")
+) +
+theme_pander(base_size = 17) +
+theme(legend.position = "bottom")
+```
+
+
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-Slides-2.html", output = "Tutorial-Slides-2.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```

@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Visualization: Using ggplot2</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <script src="Tutorial-3_files/header-attrs-2.6/header-attrs.js"></script>
+    <link href="Tutorial-3_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-3_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-3_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Visualization: Using ggplot2
+## EC 607 Metrics, Tutorial 3
+### Philip Economides
+### Spring 2021
+
+---
+
+class: middle
+
+
+
+
+
+
+
+name: schedule
+
+# Schedule
+
+## Today
+
+- An introduction to visualization.
+- How to build a plot.
+- Plot components.
+- Experiment with `ggplot2`.
+- `ggplot2` resources.
+
+---
+layout: true
+
+# Introduction
+---
+name: basics
+
+## What is it?
+
+`ggplot2` is a package included in the `tidyverse`. It lets you easily make plots that are extremely customizable through the layering of graphics. 
+
+
+```r
+#Load your Packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(gapminder, tidyverse)
+
+summary(gapminder)
+
+# Layered graphics: scatterplot + linear model
+ggplot(gapminder, mapping = aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+--
+This section is based on a paper [A Layered Grammar of Graphics](https://vita.had.co.nz/papers/layered-grammar.pdf) by Hadley Wickham, one of the creators of ggplot2.
+
+---
+layout: true
+
+# Basic Plot
+
+---
+## How to build a plot
+
+First we need some data.
+
+`ggplot2` requires that data be in the form of a data frame. If your data is not, sometimes you can coerce: `as_data_frame()` actually makes your data a tibble (equivalently, as_tibble()), which is the tidyverse's updated version of a data frame.
+
+
+```r
+# A tribble is just a transposed tibble: for convenience, I've decided 
+#to define it row-wise instead of column-wise.
+
+simple_data &lt;- tribble(
+  ~"A", ~"B", ~"C", ~"D",
+  #---|-----|-----|-----
+  2, 3, 4, "b",
+  1, 2, 1, "b",
+  4, 5, 15, "a",
+  9, 10, 80, "a")
+```
+--
+This dataset has 4 variables (A, B, C, D), and 4 observations of those variables (4 rows). 
+
+---
+
+## A basic plot
+
+Let's make a scatterplot of A versus C, and draw different shapes for realizations of D. When we're building this plot, we're hoping that behind the scenes, R creates a new dataset with these changes:
+
+* Map the x-position to A
+* Map the y-position to C
+* Map shape to D
+* Remove any variables that don't appear in the plot
+
+These mappings (x-position, y-position, and shape) are examples of **aesthetics**, `aes` for short.
+
+---
+
+Behind the scenes, `ggplot2` will take our `simple_data` and create a new dataset to help build our plot:
+
+
+```r
+simple_data_mapping &lt;- tribble(
+    ~"x", ~"y", ~"Shape",
+    #---|-----|---------
+    2, 4, "triangle",
+    1, 1, "triangle",
+    4, 15, "circle",
+    9, 80, "circle"
+)
+
+# Compare `simple_data` to `simple_data_mapping`:
+simple_data
+simple_data_mapping
+
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D))
+
+# Note: inside a `ggplot`, we use `+` instead of `%&gt;%`.
+```
+
+---
+
+
+```r
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D))
+```
+
+&lt;img src="Tutorial-3_files/figure-html/CrashParty-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+layout: true
+
+#Faceting
+
+---
+
+
+
+- Notice, `ggplot` mapped "a" to a circle and "b" to a triangle. This transformation is the responsibility of **scales**. So if you want the mapping to be different, specify a different scale.
+
+- We can create lots of different types of plots using this same basic specification. For example, if we drew lines instead of points, we would get a line plot. 
+
+- Or, if we used bars, we would get a bar plot. Bars, lines, and points are all examples of **geometric objects**, `geom` for short. 
+
+- `ggplot2` has a [ton of options for geoms](https://ggplot2.tidyverse.org/reference/), but we'll be using `geom_point`, `geom_line`, `geom_bar`, etc.
+
+- Let's try more complicated plot: Faceting.
+
+---
+
+Faceting your plot into groups specified by D. 
+
+Each value of D (a or b) will be displayed on a different panel.
+
+
+```r
+ggplot(simple_data) + 
+  geom_point(mapping = aes(x = A, y = C, shape = D)) + 
+  facet_wrap(~D)
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_facet-1.svg" style="display: block; margin: auto;" /&gt;
+
+```r
+# Notice that shape = D is redundant: we're displaying different values for D in 
+# different panels, so it's a little silly to also emphasize different values for D with shape.
+```
+
+---
+
+For example, in our `gapminder`,`log(gdpPercap)` has a high correlation with `lifeExp` across continents.
+
+
+```r
+library(gapminder)
+ggplot(gapminder) + 
+  geom_point(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  facet_wrap(~continent)
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_facet_ex-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+layout: true
+
+#Plot components
+
+---
+
+Components that make up a plot:
+
+* data and aesthetic mappings
+* geometric objects
+* scales
+* facet specification
+* statistical transformations
+* coordinate system
+
+Together, the data, mappings, statistical transformation, and geometric object form a **layer**. A plot can have many layers. For example, we can overlay a scatterplot with a fitted line. Or you can draw two curves on top of each other from different data sets.
+
+---
+
+A **statistical transformation** (`stat` for short) typically summarizes the data in some manner. One useful stat is the smoother: it calculates the mean of y conditional on x, subject to some restriction that ensures smoothness.
+
+
+```r
+ggplot(gapminder, mapping = aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point(alpha=0.5) +
+  geom_smooth()
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_stat_smooth-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+Another example of statistical transformation: aggregation of `geom_histogram`. Only specify x variable. R creates the y variable by dividing the range of x by the number of `bins` you specify (30 by default), and then counting number of observations in each bin.
+
+
+```r
+# Default bins is 30
+ggplot(gapminder, mapping = aes(x = gdpPercap)) + 
+  geom_histogram()
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_stat_hist-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+By specifying the number of `bins` we can introduce more detail into the histogram.
+
+--
+
+
+```r
+# Specify binwidth to be 1,000 (or `bins = 50`, or `breaks` = ...)
+ggplot(gapminder, mapping = aes(x = gdpPercap)) + 
+  geom_histogram(binwidth = 1000)
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_stat_histband-1.svg" style="display: block; margin: auto;" /&gt;
+
+--
+
+To add dollar signs and commas, we'll need `scales` package. 
+
+---
+
+layout: true
+
+#Scale
+
+---
+
+Every aesthetic mapping has a scale.
+--
+
+* Shape: circle, square, triangle, etc
+* Size: how big or small should the points be?
+* Color: the default color scheme in ggplot2 picks evenly spaced hues around the hcl (Hue-Chroma-Luminance) color wheel starting from 15. So if you have 3 categories for variables, you'll get different colors compared to if you have 5. If your variable is continuous, your scale is a path in the HCL color space.
+
+--
+
+Here are some legends associated with [scales](https://encrypted-tbn0.gstatic.com/images?q=tbn%3AANd9GcRy3CB_vS1GJ51iMmKBY6JCMD0Ev1GpcdIAvnRtSxRiaK_k-i-K&amp;usqp=CAU)
+
+I'll also add some links in order to access a [color palette generator](https://learnui.design/tools/data-color-picker.html) and [color encyclopedia](https://www.colorhexa.com/). 
+
+---
+
+
+```r
+# If you want to set an aesthetic of your plot to be some fixed value,
+# make that specification outside the aesthetic mapping:
+
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(color = "blue")
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_fixed_val-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+---
+Lets colour by groups!
+
+
+```r
+# Make point color = continent, size = 2, and shape = "k"
+ggplot(gapminder, aes(x = log(gdpPercap), y = lifeExp)) + 
+  geom_point(aes(color = continent), size = 2, shape = "k")
+```
+
+&lt;img src="Tutorial-3_files/figure-html/ggplot_fixed_val_ex-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+layout:true
+
+# Exploring ggplot2
+
+---
+
+Consider the following base code. 
+
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdp_per_cap), y = life_exp)) +
+  geom_point(aes(color = continent))
+```
+
+How can we...
+
+- Add a title and re-name the legend
+- Change the color scale from the default
+- Adjust transparency of points
+- Represent population by point `size`
+- Change the geom from `geom_point` to `geom_text`
+- Make a line plot showing how lifeExp has changed over time for a few countries
+- Make a bar plot or histogram to see data frequency
+
+---
+
+**1. Add a title and re-name the legend:**
+
+Add: `labs(title = "___", color = "___")`.
+
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  labs(title = "GDP per capita predicts life expectancy", color = element_blank())
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-titles-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+**2. Change the color scale from the default. Options:**
+
+Add `scale_color_viridis_d()` (d for discrete, c for continuous variables). Contrasts are preserved when printing in black and white, colorblind-safe.
+  
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) + scale_color_viridis_d()
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-viridis-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+Use Wes Anderson movie color palettes with the package `wesanderson`. Check them out for yourself on [github](https://github.com/karthik/wesanderson). 
+
+
+```r
+p_load(wesanderson)
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  scale_color_manual(values=wesanderson::wes_palette(n=5, name= "FantasticFox1"))
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-wesanderson-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+Pick your own, `scale_color_manual(values = c("__", "__", ...))`. Pick 5 colors for 5 continents in the data.
+  
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent)) +
+  scale_color_manual(values = c("chartreuse3", "dodgerblue2", 
+                                "maroon3", "gold2", "wheat1"))
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-manual-colors-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+**3. Adjust transparency of points** 
+
+Do so by setting `alpha` to a fixed value between 0 and 1 (outside the aesthetic mapping). This helps when there's overplotting like below.
+
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent), alpha = .3)
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-alpha-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+**4. Represent population by point `size`** 
+
+Specify `size = pop` in the aesthetic mapping 
+
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent, size = pop))
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-point-size-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+
+```r
+gapminder %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_point(aes(color = continent, size = pop), alpha=0.5)+
+  scale_size_continuous(labels = scales::unit_format(unit = "M", scale = 1e-6))+
+  xlab("Log, GDP per Capita")+ ylab("Life Expectancy")+
+  labs(size="Population", colour="Continent")
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-point-format-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+**5. Change the geom from `geom_point` to `geom_text`.** 
+
+This creates a scatterplot with the name of the country instead of points! Use `size = pop` inside the aesthetic mapping so you're sure to be able to read large country names.
+
+
+```r
+gapminder %&gt;% filter(year == 2007) %&gt;%
+  ggplot(mapping = aes(x = log(gdpPercap), y = lifeExp)) +
+  geom_text(mapping = aes(label = country, size = pop, color = continent))
+```
+
+---
+
+&lt;img src="Tutorial-3_files/figure-html/plot-geom-txt-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+**6. Make a line plot showing how life_exp has changed over time for a few countries**
+
+Use `geom_line`. Let x = year and y = life expectancy.
+
+Re-order to match plot, `color = fct_reorder2(country, year, lifeExp, .fun = last2)`. 
+
+`.fun = last2` to specify order by last 2 values in our data.
+
+--
+
+
+```r
+p_load(forcats)
+gapminder %&gt;%
+  filter(country %in% c("Singapore", "Spain", "Ireland", 
+                        "Italy", "Israel", "Korea, Rep.")) %&gt;%
+  ggplot(mapping = aes(x = year, y = lifeExp, 
+           color = fct_reorder2(country, year, lifeExp, .fun = last2))) +
+  geom_line() + 
+  scale_colour_discrete("Countries")
+```
+
+---
+
+&lt;img src="Tutorial-3_files/figure-html/plot-line_show-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+**7. Make a bar plot or histogram to see data frequency**
+
+Bar plots: categorical data, histograms: continuous data.&lt;br&gt; 
+Reorder bars according to frequency: `x = fct_infreq(continent)`.
+  
+
+```r
+gapminder %&gt;% ggplot(mapping = aes(x = fct_infreq(continent))) +
+  geom_bar(aes(fill = continent)) + xlab(NULL) + 
+  theme(legend.position = "none")
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-bar-1.svg" style="display: block; margin: auto;" /&gt;
+
+ 
+---
+  
+**Histogram:** Compare the number of countries in bins of income in 2007. Add an aesthetic mapping that colors histogram by continent. Use `fill = continent` instead of `color = continent`.
+
+
+```r
+gapminder %&gt;%
+  filter(year == 2007) %&gt;%
+  ggplot(mapping = aes(x = gdpPercap)) +
+  geom_histogram(aes(fill = continent), bins = 10)
+```
+
+&lt;img src="Tutorial-3_files/figure-html/plot-histogram-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+`ggplot2` resources 
+
+* [A Layered Grammar of Graphics](https://vita.had.co.nz/papers/layered-grammar.pdf) 
+
+* [R4DS](https://r4ds.had.co.nz/data-visualisation.html)
+
+* [Datacamp](https://learn.datacamp.com/courses/data-visualization-with-ggplot2-1)
+
+Thank you!
+
+---
+
+
+```r
+pop_df &lt;- data.frame(
+  lang = c("SQL", "Python", "R", "SAS", "Matlab", "SPSS", "Stata"),
+  n_jobs = c(107130, 66976, 48772, 25644, 11464, 3717, 1624),
+  free = c(T, T, T, F, F, F, F)
+)
+pop_df %&lt;&gt;% mutate(lang = lang %&gt;% factor(ordered = T))
+# Plot it
+ggplot(data = pop_df, aes(x = lang, y = n_jobs, fill = free)) +
+geom_col() +
+geom_hline(yintercept = 0) +
+aes(x = reorder(lang, -n_jobs), fill = reorder(free, -free)) +
+xlab("Statistical language") +
+scale_y_continuous(label = scales::comma) +
+ylab("Number of jobs") +
+ggtitle(
+  "Comparing statistical languages",
+  subtitle = "Number of job postings on Indeed.com, 2019/01/06") +
+scale_fill_manual(
+  "Free?",
+  labels = c("True", "False"),
+  values = c(red_pink, "darkslategray")) +
+theme_pander(base_size = 17) +
+theme(legend.position = "bottom")
+```
+
+---
+
+&lt;img src="Tutorial-3_files/figure-html/statistical_languages_1-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+
+---
+
+exclude: true
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
