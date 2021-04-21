@@ -49,6 +49,16 @@ Dataframes: Using `dplyr`
 
 ## Week 3
 
+Visualization: Using `ggplot2`
+
+1. Introducing object type.
+1. Basic Components.
+1. Exploring various geometric objects.
+
+**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/45c76bc4c30ecf299ecacf1014526e7514397240/Week_3/Tutorial-3.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_3/Tutorial-3.Rmd) |
+[Example_Code](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_3/Example_Vis.Rmd)
+
 ## Week 4
 
 ## Week 5
