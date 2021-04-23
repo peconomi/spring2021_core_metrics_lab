@@ -61,6 +61,17 @@ Visualization: Using `ggplot2`
 
 ## Week 4
 
+Loops and Functions
+
+1. For() by vectors.
+1. Functional programming. 
+1. For() by dataframe.
+1. Storing outputs.
+1. Conditional functions.
+
+**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/5d8a1a053e42aac4221413b62bae0cce2cff19b9/Week_4/Tutorial-4.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_4/Tutorial-4.Rmd) 
+
 ## Week 5
 
 ## Week 6
