@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Loops and Functions</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <script src="Tutorial-4_files/header-attrs-2.6/header-attrs.js"></script>
+    <link href="Tutorial-4_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-4_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-4_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Loops and Functions
+## EC 607 Metrics, Tutorial 4
+### Philip Economides
+### Spring 2021
+
+---
+
+class: middle
+
+
+
+
+
+
+
+
+## Today
+
+- `for()` Loops
+- Functional Programming
+- Iterate over columns in a data frame
+- Handling the output
+- Conditionals and functions
+- `dplyr` vectorized conditionals
+
+---
+
+layout: true
+
+# Introduction to Iteration
+---
+
+&lt;br&gt;
+
+Suppose you're writing code and then you realize you need to take the same code chunk and copy-paste it a bunch of times to do the same process with different inputs. 
+
+--
+
+Maybe you just have a handful of those inputs, in which case copy-paste isn't elegant, but it works. Or maybe you have a ton of inputs, where copy-paste would take all day!
+
+--
+
+The solution is to **iterate** your process over your inputs. First we'll learn iteration with `for` loops, then with `purrr::map`, and then we'll practice.
+
+---
+
+layout: true
+
+# for() Loops
+
+---
+
+
+```r
+# For each variable in a sequence, execute the expression:
+for(variable in sequence){
+  expr
+}
+```
+
+For example, we can take a character vector and use a `for` loop and `nchar()` to print the number of characters in each string.
+
+```r
+cities &lt;- c("New York", "Paris", "London")
+
+# The copy-paste version of this would be:
+nchar(cities[1])
+nchar(cities[2])
+nchar(cities[3])
+
+# The for loop version is:
+for(city in cities){
+  print(nchar(city))
+}
+```
+
+
+---
+
+
+```r
+cities &lt;- c("New York", "Paris", "London")
+
+# The for loop version is:
+for(city in cities){
+  print(nchar(city))
+}
+```
+
+```
+#&gt; [1] 8
+#&gt; [1] 5
+#&gt; [1] 6
+```
+
+`city` is our variable, and during each iteration we print the number of characters of the `city`. The for loop stops when it's iterated through the whole sequence (there are no more elements of `cities`).
+
+---
+
+#### Example: loop over a vector
+
+
+```r
+# Here we write a for() loop that iterates over a vector and adds 5.
+  # Here's the vector:
+my_vector &lt;- c(8, 1, 4, NA, 18)
+
+# The copy-paste version is:
+#my_vector[1] + 5
+#my_vector[2] + 5
+#my_vector[3] + 5
+#my_vector[4] + 5
+#my_vector[5] + 5
+
+# Use x to fill in the `for` loop.
+  # Hint: you can call the `var` anything you want, just be consistent.
+for(x in my_vector){print(x + 5)}
+```
+
+```
+#&gt; [1] 13
+#&gt; [1] 6
+#&gt; [1] 9
+#&gt; [1] NA
+#&gt; [1] 23
+```
+
+---
+
+The exercises so far are pretty silly because `nchar` and `+` are already **vectorized**. Function can take a vector as input and knows how to iterate:
+
+
+```r
+cities &lt;- c("New York", "Paris", "London")
+my_vector &lt;- c(8, 1, 4, NA, 18)
+
+nchar(cities)
+```
+
+```
+#&gt; [1] 8 5 6
+```
+
+```r
+my_vector + 5
+```
+
+```
+#&gt; [1] 13  6  9 NA 23
+```
+
+More useful `for` loop: `read.csv` is a function that imports data files in "comma separated value" format. It's not vectorized: like `library`, one input at a time. Can write a `for` loop to repeat `read.csv` over multiple inputs!
+
+---
+
+&lt;br&gt;
+
+#### Loading data with a loop
+
+
+```r
+vector_csv &lt;- c("dataset_1.csv", "dataset_2.csv", "dataset_3.csv",
+                "dataset_4.csv", "dataset_5.csv", "dataset_6.csv")
+
+# The copy-paste version:
+read.csv("dataset_1.csv")
+read.csv("dataset_2.csv")
+read.csv("dataset_3.csv")
+read.csv("dataset_4.csv")
+read.csv("dataset_5.csv")
+read.csv("dataset_6.csv")
+
+# The for loop version:
+for(x in vector_csv){read.csv(x)}
+```
+
+---
+
+&lt;br&gt;
+
+#### Construct a series
+
+
+```r
+# Create a draw of 1,000 iid error terms, N(0,1)
+obs    = 1000  # Sample size
+vareps = rnorm(obs, mean=0, sd=1) 
+X      = sample(1:8, obs, replace=TRUE)
+beta   = 2
+
+# For loop
+y = c()  # Create an empty vector to fill
+
+for(t in 1:obs){
+  y[t] = beta * X[t] + vareps[t] 
+}
+```
+
+---
+
+layout: true
+
+# Functional Programming
+
+---
+
+&lt;br&gt;
+
+Loop constructs can be slow. Avoiding with FP is a common option. FP iterates over a vector or list of inputs and "maps" to a list of outputs using a function. Two ways to implement FP in R:
+
+--
+
+1. The `base` package included with R provides the `*apply()` family of functions.
+
+1. Package `purrr` (in tidyverse) provides `map*()` family of functions. Name comes from "making your functions purrr". 
+
+--
+
+Here is the [Purrr CheatSheet](https://github.com/rstudio/cheatsheets/blob/master/purrr.pdf) for a snapshot of how to apply its functions.
+
+---
+
+
+`lapply`: Create a list of results, using a sequence through a specific function
+
+
+
+```r
+L= lapply(1:3, function(i) {
+  df = tibble(num = i, let = LETTERS[i])
+  return(df)
+}) %&gt;% bind_rows()
+```
+
+--
+
+`sapply`: Create an object with results in the form of the input&lt;br&gt; (1:3 is vector `\(\implies\)` `\(2\times 3\)` matrix)
+
+
+```r
+S =sapply(1:3, function(i) {
+  df = tibble(num = i, let = LETTERS[i])
+  return(df)
+})
+```
+
+---
+
+
+```r
+p_load(tidyverse)
+cities &lt;- c("New York", "Paris", "London")
+
+# Recall, we want the number of characters in each element of this vector.
+#nchar(cities[1])
+#nchar(cities[2])
+#nchar(cities[3])
+
+# So our function is `nchar` and we want to iterate over `cities`.
+  # `map()` is very elegant. It takes arguments like this: map(.x, .f), where
+    # .x is the object you want to iterate over, and
+    # .f is the function you want to apply.
+map(cities, nchar)
+```
+
+```
+#&gt; [[1]]
+#&gt; [1] 8
+#&gt; 
+#&gt; [[2]]
+#&gt; [1] 5
+#&gt; 
+#&gt; [[3]]
+#&gt; [1] 6
+```
+
+---
+
+Shifting to `map*()` family, pretty much the same syntax as `lapply()`.
+
+--
+
+These variants are useful for returning objects of a desired type. For example, we can use `purrr::map_df()` to return a data frame.
+
+
+```r
+# map() over my_vector with the function `is.na`.
+  # remember: map(.x, .f)
+my_vector &lt;- c(8, 1, 4, NA, 18)
+map(my_vector, is.na)
+```
+
+---
+
+
+```r
+map_df(1:6, function(i){ df = tibble(A= i+5, B = i^2 - 3)})
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-5">
+<col><col><tr>
+<th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">A</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">B</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">6</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">-2</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">7</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">1</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">8</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">6</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">9</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">13</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">10</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">22</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">11</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">33</td></tr>
+</table>
+
+
+
+---
+
+Using `map()`, it'll often be useful to refer to the input `.x` when you're defining the function `.f`. For example, say we want to use `map()` to add 5 to every element of my_vector:
+
+
+```r
+# Refer to the object you're iterating over by making the function a "formula"
+  # Start the function with a `~` (that indicates a formula is coming up)
+  # Refer to the iteration object with `.x`: that's the argument name
+map(my_vector, ~ .x + 5)
+```
+
+Now you try:
+
+---
+
+#### Example: Map formulas
+
+```r
+my_vector &lt;- c(8, 1, 4, NA)
+
+#Iterate over every element of my_vector to check if the element is an even number.
+  # Hint: use the modulo operator %% to get the remainder after repeated division
+    # If a number is even, (x %% 2) == 0 will be TRUE
+    # If a number is odd, (x %% 2) == 0 will be FALSE
+map()
+```
+
+---
+
+#### Example: Map formulas
+
+```r
+my_vector &lt;- c(8, 1, 4, NA)
+
+#Iterate over every element of my_vector to check if the element is an even number.
+  # Hint: use the modulo operator %% to get the remainder after repeated division
+    # If a number is even, (x %% 2) == 0 will be TRUE
+    # If a number is odd, (x %% 2) == 0 will be FALSE
+map(my_vector, ~ (.x %% 2) == 0)
+```
+
+```
+#&gt; [[1]]
+#&gt; [1] TRUE
+#&gt; 
+#&gt; [[2]]
+#&gt; [1] FALSE
+#&gt; 
+#&gt; [[3]]
+#&gt; [1] TRUE
+#&gt; 
+#&gt; [[4]]
+#&gt; [1] NA
+```
+
+
+---
+
+layout: true
+
+# Iterate over columns in a data frame
+
+---
+
+Now you know how to use `for` loops and `purrr::map` to iterate a process over a vector of inputs.
+
+In practice though, you'll often need to iterate a process over many **columns** of inputs in a data frame. Think about in `gapminder`, if we wanted to take the `mean` of the `life_exp` column, the `gdp_per_cap` column, and then the `pop` column. If we had a data frame with 100 columns, we would want to find a way to iterate that process instead of copy-pasting `mean(column1)`, `mean(column2)` over and over. 
+
+We'll do an example (using both a `for` loop and `map`) where we iterate over the `gapminder` columns and draw scatterplots that visualize those variables against `gapminder$year`.
+
+---
+
+#### `for` loop in a data frame
+
+
+```r
+# Let's remind ourselves what `gapminder` looks like:
+head(gapminder)
+
+# Here's the copy-paste version of what we'd like to do:
+ggplot(gapminder) +
+  geom_point(aes(x = year, y = life_exp))
+ggplot(gapminder) +
+  geom_point(aes(x = year, y = gdp_per_cap))
+ggplot(gapminder) +
+  geom_point(aes(x = year, y = pop))
+```
+
+---
+
+
+```r
+p_load(gapminder)
+head(gapminder)
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:Checkdata">
+<col><col><col><col><col><col><tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">country</th><th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">continent</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">year</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">lifeExp</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">pop</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">gdpPercap</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">1952</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">28.8</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">8425333</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">779</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">1957</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">30.3</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">9240934</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">821</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">1962</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">32&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">10267083</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">853</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">1967</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">34&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">11537966</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">836</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">1972</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">36.1</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">13079460</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">740</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Afghanistan</td><td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Asia</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">1977</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">38.4</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">14880372</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">786</td></tr>
+</table>
+
+
+---
+
+Doing the `for` loop instead of the copy-pasta solution:
+
+
+```r
+# What are we iterating across? Columns in `gapminder`. 
+#I'll call the variable `cols`, but that's completely arbitrary.
+p_load(gapminder)
+for(cols in gapminder){
+  print(
+    ggplot(gapminder) +
+      geom_point(aes(x = year, y = cols))  )  }
+```
+
+Notice it will even plotted `country` and `continent` against year. But how did it know to iterate over the columns of gapminder rather than the individual elements or the rows?
+
+R knew that we wanted to iterate over columns because that's the default behavior when you iterate over a 2-dimensional data frame. This is a big part of the reason we try to keep data in this vertical format with variables as column names and observations as rows.
+
+---
+
+#### Example: `for` loop over a data frame
+
+```r
+simple_data_frame &lt;- tibble(
+  column1 = c(1, 2, 3, 4),
+  column2 = c(5, 6, 7, 8),
+  column3 = c(9, 10, 11, 12)
+)
+
+# Loop over the data frame and print the `mean` of each column
+
+for(x in simple_data_frame){
+  
+}
+```
+
+---
+
+#### Example: `for` loop over a data frame
+
+```r
+simple_data_frame &lt;- tibble(
+  column1 = c(1, 2, 3, 4),
+  column2 = c(5, 6, 7, 8),
+  column3 = c(9, 10, 11, 12)
+)
+
+# Loop over the data frame and print the `mean` of each column
+
+for(x in simple_data_frame){
+  print(mean(x))
+}
+```
+
+```
+#&gt; [1] 2.5
+#&gt; [1] 6.5
+#&gt; [1] 10.5
+```
+
+---
+
+Now we'll go back to looping over `gapminder` columns, except now we'll use `purrr::map` to solve the problem.
+
+
+```r
+# map(.x, .f)
+  # .x: What are we iterating across? `gapminder` columns. We can actually take 
+  # advantage of R's default behavior with 2-D data frames and just iterate over 
+  #`gapminder`, R will know what to do. So `.x = gapminder`.
+  # .f: What's the function? Drawing this ggplot. It would be complicated to stuff 
+  # all that code in the map() call, so we'll write our own function first.
+    # Note, this is the format for writing your own function:
+
+func_name &lt;- function(arg1, arg2){
+  "func_body_here"
+}
+
+draw_yearly_scatterplot &lt;- function(variable){
+    ggplot(gapminder) +
+      geom_point(aes(x = year, y = variable))
+}
+
+map(gapminder, draw_yearly_scatterplot)
+```
+
+
+---
+
+#### Example: `map()` over a data frame
+
+```r
+simple_data_frame &lt;- tibble(
+  column1 = c(1, 2, 3, 4),
+  column2 = c(5, 6, 7, 8),
+  column3 = c(9, 10, 11, 12)
+)
+
+# map() over the data frame and find the `mean` of each column
+  # Recall, R's default behavior is to map over columns
+
+map(simple_data_frame, mean)
+```
+
+```
+#&gt; $column1
+#&gt; [1] 2.5
+#&gt; 
+#&gt; $column2
+#&gt; [1] 6.5
+#&gt; 
+#&gt; $column3
+#&gt; [1] 10.5
+```
+
+---
+
+layout: true
+
+# Handling the Output
+
+---
+
+The `for` loops we've done create different output types versus when we `map`.
+
+
+```r
+simple_data_frame &lt;- tibble(
+  column1 = c(1, 2, 3, 4),
+  column2 = c(5, 6, 7, 8),
+  column3 = c(9, 10, 11, 12)   )
+
+# print() just prints to the console. It doesn't save the output anywhere.
+for(x in simple_data_frame){
+  print(mean(x))   }
+
+# map() on the other hand returns a list. You can save that output.
+map(simple_data_frame, mean)
+means_list &lt;- map(simple_data_frame, mean)
+# Note, if you don't want your output as a list, map() has siblings:
+  # map_dbl() returns a double (numeric) vector, 
+  # map_df() returns a data frame
+  # there are many others
+```
+
+
+---
+
+How do we save the results of a `for` loop? The solution is to initialize an empty vector before the loop, and inside the `for` loop, during each iteration, `append()` the results onto the vector instead of printing.
+
+
+```r
+means_vec &lt;- vector()
+
+for(x in simple_data_frame){
+  means_vec &lt;- append(means_vec, mean(x))
+}
+
+means_vec
+```
+
+```
+#&gt; [1]  2.5  6.5 10.5
+```
+
+---
+
+So now you know how to:
+
+* `for` loop over a vector of inputs
+* `purrr::map` over a vector of inputs
+* `for` loop over columns of a data frame
+* `purrr::map` over columns of a data frame
+* And save those results!
+
+Next up: More function techniques using `if` statements and `if else` ladders.
+
+***Resources:***
+
+[Datacamp Foundations of Functional Programming with purrr](https://learn.datacamp.com/courses/foundations-of-functional-programming-with-purrr)&lt;br&gt;
+[Datacamp Introduction to Writing Functions in R](https://learn.datacamp.com/courses/introduction-to-writing-functions-in-r)
+
+---
+
+layout: true
+
+# Conditionals and Functions
+
+---
+
+&lt;br&gt;
+
+In these latter slides we'll cover **conditionals**:
+
+  * `if` statements and `if else` ladders
+  * `dplyr` vectorized conditionals `if_else` and `case_when`
+  
+Then we'll talk more about **writing functions**.
+
+---
+
+&lt;br&gt;
+
+`if` and `if else`: Conditional statements do actions *conditioned* on a logical statement being TRUE.
+
+This is the format for an `if` statement:
+
+```r
+if(condition){
+  expr  }
+```
+
+For example,
+
+```r
+x &lt;- -3
+
+if(x &lt; 0){
+  print("x is a negative number")   }
+```
+
+---
+
+&lt;br&gt;
+
+Perhaps we want to check only a specific set of values to another value. Let's do a very simple case of this first. It will change a to 5 if x=3 is true.
+
+
+```r
+x &lt;- 3
+a &lt;- 2
+
+if(x == 3){
+  a &lt;- 5
+}
+
+a
+```
+
+```
+#&gt; [1] 5
+```
+
+
+---
+
+We can add an `else`:
+
+```r
+if(condition){
+  expr1
+} else {
+  expr2
+}
+```
+
+For example,
+
+```r
+x &lt;- 5
+
+if(x &lt; 0){
+  print("x is a negative number")
+} else {
+  print("x is not a negative number")
+}
+```
+
+---
+
+&lt;br&gt;
+
+We can nest if else statements to deal with 3 or more expressions. Parentheses are not needed:
+
+.pull-left[
+
+```r
+if(condition1){expr1} 
+else if(condition2){expr2}
+else{expr3}
+```
+]
+
+.pull-right[
+
+```r
+x &lt;- 0
+  
+if(x &lt; 0){
+  print("x is a negative number")
+} else if(x == 0) {
+  print("x is zero")
+} else{
+  print("x is a positive number")
+}
+```
+]
+
+
+---
+
+
+```r
+Y_0 = c(2, 2.5, 4, 1.5, 3) #untreated outcomes
+Y_1 = c(5, 3, 2, 4, 1) #treated outcomes
+D = c(1, 0, 1, 0, 1) #treatment status
+
+# Could use `purrr::map` but let's write a `for` loop with if inside.
+# Keep in mind, there's a way easier way to do this that we'll do next.
+
+Y &lt;- vector() #initialize an empty vector
+
+for(i in 1:length(D)){
+  d &lt;- D[i]
+ if(d == 1){
+   Y &lt;- append(Y, Y_1[i])
+ } else {
+   Y &lt;- append(Y, Y_0[i])
+ }
+}
+
+Y #check
+```
+
+```
+#&gt; [1] 5.0 2.5 2.0 1.5 1.0
+```
+
+---
+
+layout: true
+
+# dplyr vectorized conditionals
+
+---
+
+Recall our first iteration was;
+
+```r
+cities &lt;- c("New York", "Paris", "London")
+
+# The for loop version is:
+for(city in cities){
+  print(nchar(city))}
+```
+
+Was silly because `nchar()` is vectorized, which means if you input a vector, the function already understands it should iterate across that vector.
+
+
+```r
+nchar(cities)
+```
+
+So if you need to iterate, you can:
+
+* use a `for` loop
+* use `purrr::map`
+* or if a vectorized function exists, just use that! 
+
+---
+
+&lt;br&gt;
+
+Lots of functions in base R and in the tidyverse are vectorized.
+`dplyr` has two functions `if_else` and `case_when` that are vectorized, but they're so easy, I like to use them whether or not I need to iterate over a vector. They can do everything from Section 5 on single values or on vectors.
+
+The format for `if_else` is:
+
+```r
+if_else(condition, true, false)
+
+# true: value to use if the condition is TRUE
+# false: value to use if the condition is FALSE
+```
+
+---
+
+&lt;br&gt;
+
+For example,
+
+```r
+x &lt;- c(5, 0, -5)
+if_else(x &gt;= 0, "x is non-negative", "x is negative")
+```
+
+```
+#&gt; [1] "x is non-negative" "x is non-negative" "x is negative"
+```
+
+Suppose we wanted to create an indicator for whether or not an observation is in Europe and has a gdp_per_cap greater than 20,000:
+
+```r
+p_load(gapminder)
+if_else(gapminder$continent == "Europe" &amp; gapminder$gdpPercap &gt; 20000, 1, 0)
+#Not printing since its a crazy output of 0's and 1's.
+```
+
+---
+
+&lt;br&gt;
+
+#### Example: `if_else`
+
+```r
+Y_0 = c(2, 2.5, 4, 1.5, 3) #untreated outcome
+Y_1 = c(5, 3, 2, 4, 1) #treated outcome
+D = c(1, 0, 1, 0, 1) #treatment status
+
+# Write an `if_else` statement that creates variable Y: 
+# where if D == 1, let Y be Y_1; if D == 0, let Y be Y_0.
+```
+
+---
+
+&lt;br&gt;
+
+#### Example: `if_else`
+
+```r
+Y_0 = c(2, 2.5, 4, 1.5, 3) #untreated outcome
+Y_1 = c(5, 3, 2, 4, 1) #treated outcome
+D = c(1, 0, 1, 0, 1) #treatment status
+
+# Write an `if_else` statement that creates variable Y: 
+# where if D == 1, let Y be Y_1; if D == 0, let Y be Y_0.
+
+Y &lt;- if_else(D == 1, Y_1, Y_0)
+
+# This is one line of code! Previously, we had to use 10 lines 
+# to do this same thing using `for` and `if`.
+```
+
+---
+
+If you have 3 expressions instead of just 2, you *could* nest an `if_else` inside an `if_else`, but it's pretty confusing to read:
+
+
+```r
+x &lt;- c(5, 0, -5)
+if_else(x &gt; 0, "x is positive", if_else(x == 0, "x is zero", "x is negative"))
+```
+
+Instead, use `case_when`:
+
+
+```r
+x &lt;- c(5, 0, -5)
+case_when(
+  x &gt; 0 ~ "x is positive",
+  x == 0 ~ "x is zero",
+  x &lt; 0 ~ "x is negative"
+)
+```
+
+
+---
+
+exclude: true
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
