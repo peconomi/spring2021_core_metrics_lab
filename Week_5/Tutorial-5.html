@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Simulations in R</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <script src="Tutorial-5_files/header-attrs-2.6/header-attrs.js"></script>
+    <link href="Tutorial-5_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-5_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-5_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Simulations in R
+## EC 607 Metrics, Tutorial 5
+### Philip Economides
+### Spring 2021
+
+---
+
+class: middle
+
+
+
+
+
+
+## Today
+
+- Simulations overview
+- Recipe
+- Example
+- Parallelization `furrr` 
+
+---
+
+layout: true
+
+# Introduction to Simulations
+---
+
+&lt;br&gt;
+
+_When your intuition is exhausted or your confidence is lacking, you need a tool._ 
+
+_When your intuition is on point but you also need a confidence boost, you need a tool._ 
+
+_When you are writing estimators and you wish to demonstrate its properties, you need a tool._ 
+
+&lt;br&gt;
+
+This is where sims prove to be quite useful. 
+
+---
+
+layout: true
+
+# Recipe
+
+---
+
+&lt;br&gt;
+
+1. Define a data-generating process (DGP)
+
+--
+
+1. Define an estimator or estimators, setting up the test/conditions you're looking for
+
+--
+
+1. Prepare a function capturing Steps 1 and 2. Should satisfy below;
+&lt;br&gt;  a. Drawing a sample of size n from the DGP
+&lt;br&gt;  b. Conducting the exercise
+&lt;br&gt;  c. Record outcomes
+
+--
+
+1. Set seed and run numerous iterations of function
+
+--
+
+1. Communicate results
+
+
+---
+
+layout: true
+
+# DGP
+
+---
+
+
+&lt;br&gt;Recall from class:
+
+$$
+`\begin{align}
+  \text{Y}_{i} = 1 + e^{0.5 \text{X}_{i}} + \varepsilon_i
+\end{align}`
+$$
+where `\(\text{X}_{i}\sim\mathop{\text{Uniform}}(0, 10)\)` and `\(\varepsilon_i\sim\mathop{N}(0,15^2)\)`.
+
+
+
+
+
+```r
+# Choose a size
+n &lt;- 1000
+# Generate data
+dgp_df &lt;- tibble( 
+  eps = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = 1 + exp(0.5 * x) + eps  )
+```
+
+
+---
+
+&lt;br&gt;
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:sim_dply, printed">
+<col><col><col><tr>
+<th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">eps</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">x</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">y</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">8.78</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">9.53</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">127&nbsp;&nbsp;</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">10.6&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">6.22</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">34&nbsp;&nbsp;</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">-1.64</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">5.32</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">13.6</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">-6.8&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">8.92</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">80.7</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">9.09</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">1.96</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">12.8</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">-27.3&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">8.84</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">57&nbsp;&nbsp;</td></tr>
+</table>
+
+
+---
+
+### Random Treatment Sim
+
+This is often your bread and butter for a lot of basic exercises. 
+
+
+```r
+p_load(randomizr)
+Gen_Sample = function(N, prob){
+  set.seed(12401)
+# Control Outcomes for Individuals 1 to N
+Y_0 = rnorm(N, mean=2000, sd=400)
+# Treatment Outcomes for Individuals 1 to N
+Y_1 = rnorm(N, mean=2150, sd=500)
+# ID individuals 
+Ind_ID = c(1:N)
+# Form Dataframe for GGplot
+Out = as_tibble(cbind(Ind_ID, Y_1, Y_0)) %&gt;% 
+  rename(treat = Y_1 ,  ctrl = Y_0) 
+Out &lt;- Out %&gt;% mutate(#TR = rbinom(N, size = 1, prob),
+                      TR = complete_ra(N=N, m=N*prob))
+return(Out)
+}
+```
+
+---
+
+### Random Treatment Sim
+
+&lt;br&gt;
+
+
+```r
+# Run out function with 10,000 sample side and 0.5 prob of treatment
+df_output = Gen_Sample(10000, 0.5)
+# Observe how the resulting dataframe appears
+glimpse(df_output)
+```
+
+```
+#&gt; Rows: 10,000
+#&gt; Columns: 4
+#&gt; $ Ind_ID &lt;dbl&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 1...
+#&gt; $ treat  &lt;dbl&gt; 1663.415, 3296.361, 1716.453, 2204.456, 3304.781, 2141.608, ...
+#&gt; $ ctrl   &lt;dbl&gt; 1971.749, 2471.643, 2105.223, 2047.473, 2296.347, 2052.143, ...
+#&gt; $ TR     &lt;int&gt; 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, ...
+```
+
+---
+
+### Distribution Glossary
+
+--
+
+Discrete Uniform r.v.: `sample`
+*sample(x, size, replace = FALSE, prob = NULL)*
+
+--
+
+Continuous Uniform r.v.: `runif`
+*runif(n, min = 0, max = 1)*
+
+--
+
+Normal Distribution: `rnorm`
+*rnorm(n, mean = 0, sd = 1)*
+
+--
+
+&lt;br&gt;
+
+install `evd` for Extreme Value Distributions 
+
+--
+
+Gumbel Distribution: `rgumbel`
+*rgumbel(n, loc=0, scale=1)()*
+
+Frechet Distribution: `rfrechet`
+*rfrechet(n, loc=0, scale=1, shape=1)*
+
+---
+
+layout: true
+
+# Example
+
+---
+
+&lt;br&gt;
+
+Very often we are reminded of the fact that correlation does not imply causation, but less frequently do we consider the fact that;
+
+--
+
+*Causation does not imply correlation*
+
+--
+
+Consider a DGP where X contributes significantly to the value of Y, but the correlation between these two values is approximately equal to zero. 
+
+--
+
+Can we think of any examples of how this occurs?
+
+---
+
+&lt;br&gt;Small tweak to previous DGP solves this problem
+
+$$
+`\begin{aligned}
+  \text{Y}_{t} = 1 + e^{0.5 \text{X}_{t}} + \varepsilon_t \ \ \ \ \ \ \  \text{for t} \leq T\\
+  \text{Y}_{t} = 1 - e^{0.5 \text{X}_{t}} + \varepsilon_t \ \ \ \ \ \ \  \text{for t} &gt; T
+\end{aligned}`
+$$
+
+--
+
+A structural break that causes X to switch from positive to negative contributions towards Y preserves causality whereas `\(cor(X,Y) \approx 0\)`.
+
+---
+
+### Step 1: Define a DGP
+
+
+```r
+library(pacman)
+p_load(dplyr, ggplot2,estimatr)
+# Choose our sample size n and break date B
+n &lt;- 1000
+B &lt;- 500
+# Generate data
+dgp_df &lt;- tibble(
+  t = seq(1:1000),
+  e = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = ifelse(t&lt;=B, 1 + exp(0.5 * x) + e, 1 - exp(0.5 * x) + e),
+  D = ifelse(t&lt;=B, 0, 1) # An indicator for our break date in the DF
+)
+```
+
+---
+
+### Step 2: Define our estimator
+
+
+```r
+# Perform regressions with and without structural break
+lm1 &lt;- lm_robust(y ~ x, data = dgp_df)
+lm2 &lt;- lm_robust(y ~ x + D + (x*D), data = dgp_df)
+
+# Stack and return results for significance of X with
+# and without accounting for break
+  TTT &lt;- bind_rows(tidy(lm1), tidy(lm2))  %&gt;% 
+    select(1:5) %&gt;% filter(term=="x" | term=="x:D") %&gt;% 
+    mutate(dummy = c("N", "Y", "Y"))
+
+# Determine correlation between X and Y 
+  correl &lt;- cor(dgp_df$x, dgp_df$y)
+  
+# Store all of these results in one object  
+  cbind(TTT,correl)
+```
+
+---
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-6">
+<col><col><col><col><col><col><col><tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">term</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">estimate</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">std.error</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">statistic</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">p.value</th><th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">dummy</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">correl</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">x</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.122</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.777</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.157</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.875&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">N</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.007</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">x</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">11.3&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.453</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">24.9&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">4.31e-107</td><td style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Y</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.007</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">x:D</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">-22.4&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.65&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">-34.4&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">9.53e-172</td><td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">Y</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.007</td></tr>
+</table>
+
+
+--
+
+In this particular set of cases, X is clearly important when we account for the structural break in our regression, yet the correlation between `\(X\)` and `\(Y\)` is near zero.
+
+--
+
+Is this a fluke? Did we just happen to draw a particular edge case scenario?
+
+--
+
+Perform these draws repeated over 2,500 iterations. Will result in us being able to plot the distribution of our signficance values and correlations. 
+
+
+---
+
+### Step 3: Prepare our function `fun_iter`, incase 1 &amp; 2.
+
+
+```r
+fun_iter &lt;- function(iter, n = 1000) {
+  # Generate data
+  iter_df &lt;- tibble(
+  t = seq(1:1000),
+  B = 500,
+  e = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = ifelse(t&lt;=B, 1 + exp(0.5 * x) + e, 1 - exp(0.5 * x) + e),
+  D = ifelse(t&lt;=B, 0, 1)
+  )
+  # Estimate the Model
+  lm1 &lt;- lm_robust(y ~ x,            data = iter_df)
+  lm2 &lt;- lm_robust(y ~ x + D + (x*D), data = iter_df)
+  # Stack and return results
+  TTT &lt;- bind_rows(tidy(lm1), tidy(lm2))  %&gt;% 
+    select(1:5) %&gt;% filter(term=="x" | term=="x:D") %&gt;% 
+    mutate(dummy = c("N", "Y", "Y"), i = iter)
+  # Determine correlation between X and Y 
+  correl &lt;- cor(iter_df$x, iter_df$y)
+  cbind(TTT,correl)}
+```
+
+
+---
+
+### Step 4: Iterate these results `iter` number of times.
+Using our `map()` from last week, run this for iteration 1 to 2500.  
+
+
+```r
+# Packages
+p_load(purrr)
+# Set seed
+set.seed(12345)
+# Run 2500 iterations
+sim_list &lt;- map(1:2500, fun_iter)
+# Bind list together
+sim_df &lt;- bind_rows(sim_list)
+sim_df_c &lt;- sim_df %&gt;% mutate(
+  Effect=ifelse(term!="x:D", estimate, estimate + lag(estimate)),
+  EffectC= ifelse(dummy=="N", "All", 
+              ifelse(term=="x", "Pre-T", "Post-T")))
+```
+
+---
+
+### Step 5: Communicate Results
+
+&lt;img src="Tutorial-5_files/figure-html/unnamed-chunk-8-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+
+```r
+ggplot(data = sim_df, aes(x = correl)) +
+  geom_density(color = "blue", fill = "red", alpha=0.5) +
+ geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0,linetype="dotted")+
+  xlab("Correlation") +
+  ylab("Density")+
+  theme_pander()
+```
+
+---
+
+&lt;img src="Tutorial-5_files/figure-html/unnamed-chunk-9-1.svg" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+layout: true
+
+# Parallelization
+
+---
+
+Parallel programming can be a major challenge, with notable paywall issues in the Stata setting. 
+
+--
+
+For R, software innovations and some amazing new(ish) packages have made it much easier and safer to program in parallel
+
+--
+
+Today we'll be using;
+
+1. `future.apply`
+1. `furrr`
+1. `pbapply`
+
+--
+
+For more details, check out Grant McDermott's [online material](https://raw.githack.com/uo-ec607/lectures/master/12-parallel/12-parallel.html) for parallelization in R. 
+
+---
+
+
+
+
+```r
+p_load(parallel, future, future.apply, furrr, RhpcBLASctl, tictoc, pbapply)
+plan(multisession) ## Assign number of logical processors
+
+# Simple list without multithreading options being accessed
+tic()
+serial_ex = lapply(1:12000, function(i){ tibble(x = i^2 + 3*i)}) %&gt;% bind_rows()
+toc()
+```
+
+```
+#&gt; 7.94 sec elapsed
+```
+
+```r
+# Accessing multithreading using future.apply package
+tic()
+serial_ex = future_lapply(
+  1:12000, function(i){ tibble(x = i^2 + 3*i)}) %&gt;% bind_rows()
+toc()
+```
+
+```
+#&gt; 5.15 sec elapsed
+```
+
+```r
+# How many logical processors did we access?
+#detectCores()
+```
+
+---
+
+Let's repeat our example code from earlier, but use `future_map` to speed up the process. 
+
+
+
+
+```r
+tic()
+set.seed(12345)
+sim_list &lt;- map(1:250, fun_iter) %&gt;% bind_rows()
+toc()
+```
+
+```
+#&gt; 5.88 sec elapsed
+```
+
+```r
+tic()
+set.seed(12345)
+sim_lt &lt;- future_map(1:250, fun_iter, .options = furrr_options(seed = T)) %&gt;% bind_rows()
+toc()
+```
+
+```
+#&gt; 1.7 sec elapsed
+```
+
+A definite time saver! Be sure to parallelize your code whenever possible. 
+
+---
+
+&lt;br&gt;Another interesting option is `pbapply` which brings with it a progress bar.
+
+
+```r
+tic()
+sim_pblapply = pblapply(1:250, fun_iter, 
+    cl = parallel::detectCores()) %&gt;% bind_rows()
+toc()
+```
+
+```
+#&gt; 5.65 sec elapsed
+```
+
+---
+
+exclude: true
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

@@ -1,0 +1,575 @@
+---
+title: "Simulations in R"
+subtitle: "EC 607 Metrics, Tutorial 5"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+## Today
+
+- Simulations overview
+- Recipe
+- Example
+- Parallelization `furrr` 
+
+---
+
+layout: true
+
+# Introduction to Simulations
+---
+
+<br>
+
+_When your intuition is exhausted or your confidence is lacking, you need a tool._ 
+
+_When your intuition is on point but you also need a confidence boost, you need a tool._ 
+
+_When you are writing estimators and you wish to demonstrate its properties, you need a tool._ 
+
+<br>
+
+This is where sims prove to be quite useful. 
+
+---
+
+layout: true
+
+# Recipe
+
+---
+
+<br>
+
+1. Define a data-generating process (DGP)
+
+--
+
+1. Define an estimator or estimators, setting up the test/conditions you're looking for
+
+--
+
+1. Prepare a function capturing Steps 1 and 2. Should satisfy below;
+<br>  a. Drawing a sample of size n from the DGP
+<br>  b. Conducting the exercise
+<br>  c. Record outcomes
+
+--
+
+1. Set seed and run numerous iterations of function
+
+--
+
+1. Communicate results
+
+
+---
+
+layout: true
+
+# DGP
+
+---
+
+
+<br>Recall from class:
+
+$$
+\begin{align}
+  \text{Y}_{i} = 1 + e^{0.5 \text{X}_{i}} + \varepsilon_i
+\end{align}
+$$
+where $\text{X}_{i}\sim\mathop{\text{Uniform}}(0, 10)$ and $\varepsilon_i\sim\mathop{N}(0,15^2)$.
+
+```{r, sim_seed, include = F}
+set.seed(12345)
+```
+
+
+```{r, sim_dgp}
+# Choose a size
+n <- 1000
+# Generate data
+dgp_df <- tibble( 
+  eps = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = 1 + exp(0.5 * x) + eps  )
+```
+
+
+---
+
+<br>
+
+```{r, sim_dply, printed, echo = F}
+head(dgp_df)
+```
+
+---
+
+### Random Treatment Sim
+
+This is often your bread and butter for a lot of basic exercises. 
+
+```{r}
+p_load(randomizr)
+Gen_Sample = function(N, prob){
+  set.seed(12401)
+# Control Outcomes for Individuals 1 to N
+Y_0 = rnorm(N, mean=2000, sd=400)
+# Treatment Outcomes for Individuals 1 to N
+Y_1 = rnorm(N, mean=2150, sd=500)
+# ID individuals 
+Ind_ID = c(1:N)
+# Form Dataframe for GGplot
+Out = as_tibble(cbind(Ind_ID, Y_1, Y_0)) %>% 
+  rename(treat = Y_1 ,  ctrl = Y_0) 
+Out <- Out %>% mutate(#TR = rbinom(N, size = 1, prob),
+                      TR = complete_ra(N=N, m=N*prob))
+return(Out)
+}
+```
+
+---
+
+### Random Treatment Sim
+
+<br>
+
+```{r}
+# Run out function with 10,000 sample side and 0.5 prob of treatment
+df_output = Gen_Sample(10000, 0.5)
+# Observe how the resulting dataframe appears
+glimpse(df_output)
+```
+
+---
+
+### Distribution Glossary
+
+--
+
+Discrete Uniform r.v.: `sample`
+*sample(x, size, replace = FALSE, prob = NULL)*
+
+--
+
+Continuous Uniform r.v.: `runif`
+*runif(n, min = 0, max = 1)*
+
+--
+
+Normal Distribution: `rnorm`
+*rnorm(n, mean = 0, sd = 1)*
+
+--
+
+<br>
+
+install `evd` for Extreme Value Distributions 
+
+--
+
+Gumbel Distribution: `rgumbel`
+*rgumbel(n, loc=0, scale=1)()*
+
+Frechet Distribution: `rfrechet`
+*rfrechet(n, loc=0, scale=1, shape=1)*
+
+---
+
+layout: true
+
+# Example
+
+---
+
+<br>
+
+Very often we are reminded of the fact that correlation does not imply causation, but less frequently do we consider the fact that;
+
+--
+
+*Causation does not imply correlation*
+
+--
+
+Consider a DGP where X contributes significantly to the value of Y, but the correlation between these two values is approximately equal to zero. 
+
+--
+
+Can we think of any examples of how this occurs?
+
+---
+
+<br>Small tweak to previous DGP solves this problem
+
+$$
+\begin{aligned}
+  \text{Y}_{t} = 1 + e^{0.5 \text{X}_{t}} + \varepsilon_t \ \ \ \ \ \ \  \text{for t} \leq T\\
+  \text{Y}_{t} = 1 - e^{0.5 \text{X}_{t}} + \varepsilon_t \ \ \ \ \ \ \  \text{for t} > T
+\end{aligned}
+$$
+
+--
+
+A structural break that causes X to switch from positive to negative contributions towards Y preserves causality whereas $cor(X,Y) \approx 0$.
+
+---
+
+### Step 1: Define a DGP
+
+```{r}
+library(pacman)
+p_load(dplyr, ggplot2,estimatr)
+# Choose our sample size n and break date B
+n <- 1000
+B <- 500
+# Generate data
+dgp_df <- tibble(
+  t = seq(1:1000),
+  e = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = ifelse(t<=B, 1 + exp(0.5 * x) + e, 1 - exp(0.5 * x) + e),
+  D = ifelse(t<=B, 0, 1) # An indicator for our break date in the DF
+)
+```
+
+---
+
+### Step 2: Define our estimator
+
+```{r eval=FALSE}
+# Perform regressions with and without structural break
+lm1 <- lm_robust(y ~ x, data = dgp_df)
+lm2 <- lm_robust(y ~ x + D + (x*D), data = dgp_df)
+
+# Stack and return results for significance of X with
+# and without accounting for break
+  TTT <- bind_rows(tidy(lm1), tidy(lm2))  %>% 
+    select(1:5) %>% filter(term=="x" | term=="x:D") %>% 
+    mutate(dummy = c("N", "Y", "Y"))
+
+# Determine correlation between X and Y 
+  correl <- cor(dgp_df$x, dgp_df$y)
+  
+# Store all of these results in one object  
+  cbind(TTT,correl)
+
+```
+
+---
+
+```{r echo=FALSE}
+# Perform regressions with and without structural break
+lm1 <- lm_robust(y ~ x, data = dgp_df)
+lm2 <- lm_robust(y ~ x + D + (x*D), data = dgp_df)
+
+# Stack and return results for significance of X with
+# and without accounting for break
+  TTT <- bind_rows(tidy(lm1), tidy(lm2))  %>% 
+    select(1:5) %>% filter(term=="x" | term=="x:D") %>% 
+    mutate(dummy = c("N", "Y", "Y"))
+
+# Determine correlation between X and Y 
+  correl <- cor(dgp_df$x, dgp_df$y)
+  
+# Store all of these results in one object  
+  cbind(TTT,correl)
+
+```
+
+--
+
+In this particular set of cases, X is clearly important when we account for the structural break in our regression, yet the correlation between $X$ and $Y$ is near zero.
+
+--
+
+Is this a fluke? Did we just happen to draw a particular edge case scenario?
+
+--
+
+Perform these draws repeated over 2,500 iterations. Will result in us being able to plot the distribution of our signficance values and correlations. 
+
+
+---
+
+### Step 3: Prepare our function `fun_iter`, incase 1 & 2.
+
+```{r sim_df}
+fun_iter <- function(iter, n = 1000) {
+  # Generate data
+  iter_df <- tibble(
+  t = seq(1:1000),
+  B = 500,
+  e = rnorm(n, sd = 15),
+  x = runif(n, min = 0, max = 10),
+  y = ifelse(t<=B, 1 + exp(0.5 * x) + e, 1 - exp(0.5 * x) + e),
+  D = ifelse(t<=B, 0, 1)
+  )
+  # Estimate the Model
+  lm1 <- lm_robust(y ~ x,            data = iter_df)
+  lm2 <- lm_robust(y ~ x + D + (x*D), data = iter_df)
+  # Stack and return results
+  TTT <- bind_rows(tidy(lm1), tidy(lm2))  %>% 
+    select(1:5) %>% filter(term=="x" | term=="x:D") %>% 
+    mutate(dummy = c("N", "Y", "Y"), i = iter)
+
+  # Determine correlation between X and Y 
+  correl <- cor(iter_df$x, iter_df$y)
+  cbind(TTT,correl)}
+```
+
+
+---
+
+### Step 4: Iterate these results `iter` number of times.
+Using our `map()` from last week, run this for iteration 1 to 2500.  
+
+```{r}
+# Packages
+p_load(purrr)
+# Set seed
+set.seed(12345)
+# Run 2500 iterations
+sim_list <- map(1:2500, fun_iter)
+# Bind list together
+sim_df <- bind_rows(sim_list)
+sim_df_c <- sim_df %>% mutate(
+  Effect=ifelse(term!="x:D", estimate, estimate + lag(estimate)),
+  EffectC= ifelse(dummy=="N", "All", 
+              ifelse(term=="x", "Pre-T", "Post-T")))
+```
+
+---
+
+### Step 5: Communicate Results
+
+```{r echo=FALSE, fig.height=5, fig.width=8}
+q<- ggplot(data = sim_df_c, aes(x = Effect, fill = EffectC)) +
+  geom_density(color = NA) +
+ geom_hline(yintercept = 0) +
+  xlab("Slope (Approx. Causal Effect)") +
+  ylab("Density") +
+  scale_fill_viridis(
+    "", labels = c("All", "Post-Period T", "Pre-Period T"), discrete = T,
+    option = "B", begin = 0.25, end = 0.85, alpha = 0.9) +
+  
+  theme(legend.direction = "horizontal")+
+  theme_pander(lp="bottom")
+
+k <- ggplot(data = sim_df_c) +
+  geom_density(color = NA, aes(x = statistic, fill = EffectC)) +
+ geom_hline(yintercept = 0) +
+  xlab("t-Statistic") +
+  ylab("Density") +
+  scale_fill_viridis(
+    "", labels = c("All", "Post-Period T", "Pre-Period T"), discrete = T,
+    option = "B", begin = 0.25, end = 0.85, alpha = 0.9) +
+  
+  theme(legend.direction = "horizontal")+
+  theme_pander(lp="bottom")
+
+ grid.arrange(q, k, ncol=2)
+```
+
+
+---
+
+```{r Corr_Plot, eval=FALSE, fig.align = 'center'}
+ggplot(data = sim_df, aes(x = correl)) +
+  geom_density(color = "blue", fill = "red", alpha=0.5) +
+ geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0,linetype="dotted")+
+  xlab("Correlation") +
+  ylab("Density")+
+  theme_pander()
+```
+
+---
+
+```{r, echo=FALSE, fig.align='center'}
+
+ggplot(data = sim_df, aes(x = correl)) +
+  geom_density(color = "blue", fill = "red", alpha=0.5) +
+ geom_hline(yintercept = 0) +
+  geom_vline(xintercept = 0,linetype="dotted")+
+  xlab("Correlation") +
+  ylab("Density")+
+  theme_pander()
+```
+
+
+---
+
+layout: true
+
+# Parallelization
+
+---
+
+Parallel programming can be a major challenge, with notable paywall issues in the Stata setting. 
+
+--
+
+For R, software innovations and some amazing new(ish) packages have made it much easier and safer to program in parallel
+
+--
+
+Today we'll be using;
+
+1. `future.apply`
+1. `furrr`
+1. `pbapply`
+
+--
+
+For more details, check out Grant McDermott's [online material](https://raw.githack.com/uo-ec607/lectures/master/12-parallel/12-parallel.html) for parallelization in R. 
+
+---
+
+```{r, include=FALSE}
+p_load(parallel, future, future.apply, furrr, RhpcBLASctl, tictoc, pbapply)
+plan(multisession) ## Assign number of logical processors
+
+# Simple list without multithreading options being accessed
+tic()
+serial_ex = lapply(1:12000, function(i){ tibble(x = i^2 + 3*i)}) %>% bind_rows()
+toc()
+# Accessing multithreading using future.apply package
+tic()
+serial_ex = future_lapply(
+  1:12000, function(i){ tibble(x = i^2 + 3*i)}) %>% bind_rows()
+toc()
+# How many logical processors did we access?
+#detectCores()
+```
+
+```{r Packages}
+p_load(parallel, future, future.apply, furrr, RhpcBLASctl, tictoc, pbapply)
+plan(multisession) ## Assign number of logical processors
+
+# Simple list without multithreading options being accessed
+tic()
+serial_ex = lapply(1:12000, function(i){ tibble(x = i^2 + 3*i)}) %>% bind_rows()
+toc()
+# Accessing multithreading using future.apply package
+tic()
+serial_ex = future_lapply(
+  1:12000, function(i){ tibble(x = i^2 + 3*i)}) %>% bind_rows()
+toc()
+# How many logical processors did we access?
+#detectCores()
+```
+
+---
+
+Let's repeat our example code from earlier, but use `future_map` to speed up the process. 
+
+```{r include=FALSE}
+tic()
+set.seed(12345)
+sim_list <- map(1:250, fun_iter) %>% bind_rows()
+toc()
+
+tic()
+set.seed(12345)
+sim_lt <- future_map(1:250, fun_iter, .options = furrr_options(seed = T)) %>% bind_rows()
+toc()
+```
+
+```{r}
+tic()
+set.seed(12345)
+sim_list <- map(1:250, fun_iter) %>% bind_rows()
+toc()
+
+tic()
+set.seed(12345)
+sim_lt <- future_map(1:250, fun_iter, .options = furrr_options(seed = T)) %>% bind_rows()
+toc()
+```
+
+A definite time saver! Be sure to parallelize your code whenever possible. 
+
+---
+
+<br>Another interesting option is `pbapply` which brings with it a progress bar.
+
+```{r}
+tic()
+sim_pblapply = pblapply(1:250, fun_iter, 
+    cl = parallel::detectCores()) %>% bind_rows()
+toc()
+```
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-5.html", output = "Tutorial-5.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
