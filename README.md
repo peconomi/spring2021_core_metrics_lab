@@ -74,6 +74,14 @@ Loops and Functions
 
 ## Week 5
 
+1. a
+1. v
+1. c
+
+**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/c3b2e0c5cff217f8f678f0cdc0cae7c54d8db2b8/Week_5/Tutorial-5.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_5/Tutorial-5.Rmd) 
+
+
 ## Week 6
 
 ## Week 7
