@@ -74,6 +74,8 @@ Loops and Functions
 
 ## Week 5
 
+Simulations and Parallelization
+
 1. Simulations overview
 1. Recipe
 1. Examples
