@@ -87,6 +87,17 @@ Simulations and Parallelization
 
 ## Week 6
 
+Regressions and Standard Errors
+
+1. Revisiting OLS
+1. Regression Output
+1. Fixed Effects (w/ Clustering)
+1. Instrumental Variables
+1. Standard Errors
+
+**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/48e7201d1f67978536b5df9dd4ef203c353f6388/Week_6/Tutorial-6.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_6/Tutorial-6.Rmd) 
+
 ## Week 7
 
 ## Week 8
