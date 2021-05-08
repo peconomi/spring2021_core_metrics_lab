@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Regression Analysis</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <script src="Tutorial-6_files/header-attrs-2.6/header-attrs.js"></script>
+    <link href="Tutorial-6_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-6_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-6_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <script src="Tutorial-6_files/kePrint-0.0.1/kePrint.js"></script>
+    <link href="Tutorial-6_files/lightable-0.0.1/lightable.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Regression Analysis
+## EC 607 Metrics, Tutorial 6
+### Philip Economides
+### Spring 2021
+
+---
+
+class: middle
+
+
+
+
+
+
+## Today
+
+- Ordinary Least Squares
+- Regression Output
+- Fixed-Effect Models
+- Instrumental Variables
+- Standard Errors 
+
+---
+
+layout: true
+
+# Regression Analysis
+---
+
+&lt;br&gt;
+
+With such a wide array of package options, confusion can easily arise. 
+
+--
+
+Additionally, some packages are more cumbersome than others.
+
+--
+
+In order to alleviate some of these concerns, I'll run through a set of recommended packages. 
+
+
+---
+
+layout: true
+
+# Ordinary Least Squares
+
+---
+
+&lt;br&gt;
+
+While `lm()` from the stats package is a common go to for fitting linear models, the `fixest` package is an alternative worth considering. 
+
+--
+
+
+```r
+# Lets generate some data to fit into our OLS functions
+set.seed(12345)
+X = runif(10000, 2, 5)
+e = rnorm(10000, 0, 1)
+Y = 4 + 5*X + e
+
+# Do we return correct coefficients?
+Xm = matrix(c(rep(1,10000), X), ncol=2)
+t(solve(t(Xm) %*% Xm) %*% (t(Xm) %*% Y))
+```
+
+```
+#&gt;          [,1]     [,2]
+#&gt; [1,] 3.965663 5.009815
+```
+
+---
+
+&lt;br&gt;
+
+.pull-left[
+
+```r
+d_frame = bind_cols(Y,X) %&gt;% 
+  rename(Y=...1, X=...2)
+a = lm(Y ~ X, data=d_frame)
+a %&gt;% tidy() %&gt;% select(1:3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-3">
+<col><col><col><tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">term</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">estimate</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">std.error</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">(Intercept)</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">3.97</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.0419</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">X</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">5.01</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.0116</td></tr>
+</table>
+
+]
+
+--
+
+.pull-right[
+
+```r
+# Alternative means
+p_load(fixest)
+b=feols(Y ~ X, data=d_frame)
+b %&gt;% tidy()%&gt;% select(1:3)
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-4">
+<col><col><col><tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">term</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">estimate</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">std.error</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">(Intercept)</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">3.97</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.0419</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">X</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">5.01</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.0116</td></tr>
+</table>
+
+]
+
+---
+
+layout: true
+
+# Regression Output
+
+---
+
+
+```r
+# Using export_summs()
+p_load(jtools)
+export_summs(a,b, model.names = c("lm()", "feols()"), 
+    coefs = c("constant" = "(Intercept)", "covariate" = "X"))
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-5">
+<col><col><col><tr>
+<th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;"></th><th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">lm()</th><th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">feols()</th></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">constant</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">3.97 ***</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">3.97 ***</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;"></th><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.04)&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.04)&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">covariate</th><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">5.01 ***</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">5.01 ***</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;"></th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.01)&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.01)&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">N</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">10000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">10000&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">R2</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.95&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.95&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th colspan="3" style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;"> *** p &lt; 0.001;  ** p &lt; 0.01;  * p &lt; 0.05.</th></tr>
+</table>
+
+
+---
+
+
+```r
+# Using stargazer, b object unrecognized. type=text,latex,html
+p_load(stargazer)
+stargazer(a, title="Regression Results", type="html",
+          single.row=TRUE,ci=TRUE, ci.level=0.95,
+          omit.stat=c("f", "ser"))
+```
+
+```
+#&gt; 
+#&gt; &lt;table style="text-align:center"&gt;&lt;caption&gt;&lt;strong&gt;Regression Results&lt;/strong&gt;&lt;/caption&gt;
+#&gt; &lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;/td&gt;&lt;td&gt;&lt;em&gt;Dependent variable:&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td colspan="1" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;/td&gt;&lt;td&gt;Y&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;X&lt;/td&gt;&lt;td&gt;5.010&lt;sup&gt;***&lt;/sup&gt; (4.987, 5.033)&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td style="text-align:left"&gt;Constant&lt;/td&gt;&lt;td&gt;3.966&lt;sup&gt;***&lt;/sup&gt; (3.884, 4.048)&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;Observations&lt;/td&gt;&lt;td&gt;10,000&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td style="text-align:left"&gt;R&lt;sup&gt;2&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;0.949&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td style="text-align:left"&gt;Adjusted R&lt;sup&gt;2&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;0.949&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;em&gt;Note:&lt;/em&gt;&lt;/td&gt;&lt;td style="text-align:right"&gt;&lt;sup&gt;*&lt;/sup&gt;p&lt;0.1; &lt;sup&gt;**&lt;/sup&gt;p&lt;0.05; &lt;sup&gt;***&lt;/sup&gt;p&lt;0.01&lt;/td&gt;&lt;/tr&gt;
+#&gt; &lt;/table&gt;
+```
+
+---
+
+&lt;table style="text-align:center"&gt;&lt;caption&gt;&lt;strong&gt;Regression Results&lt;/strong&gt;&lt;/caption&gt;
+&lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;/td&gt;&lt;td&gt;&lt;em&gt;Dependent variable:&lt;/em&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td&gt;&lt;/td&gt;&lt;td colspan="1" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;/td&gt;&lt;td&gt;Y&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;X&lt;/td&gt;&lt;td&gt;5.010&lt;sup&gt;***&lt;/sup&gt; (4.987, 5.033)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style="text-align:left"&gt;Constant&lt;/td&gt;&lt;td&gt;3.966&lt;sup&gt;***&lt;/sup&gt; (3.884, 4.048)&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;Observations&lt;/td&gt;&lt;td&gt;10,000&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style="text-align:left"&gt;R&lt;sup&gt;2&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;0.949&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style="text-align:left"&gt;Adjusted R&lt;sup&gt;2&lt;/sup&gt;&lt;/td&gt;&lt;td&gt;0.949&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td colspan="2" style="border-bottom: 1px solid black"&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td style="text-align:left"&gt;&lt;em&gt;Note:&lt;/em&gt;&lt;/td&gt;&lt;td style="text-align:right"&gt;&lt;sup&gt;*&lt;/sup&gt;p&lt;0.1; &lt;sup&gt;**&lt;/sup&gt;p&lt;0.05; &lt;sup&gt;***&lt;/sup&gt;p&lt;0.01&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;
+
+---
+
+
+
+
+```r
+# Using kable()
+a %&gt;% tidy() %&gt;% kable()
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; term &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; estimate &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; std.error &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; statistic &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; p.value &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; (Intercept) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3.965663 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0418899 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 94.66881 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; X &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.009815 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0116155 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 431.30246 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+```r
+b %&gt;% tidy() %&gt;% kable()
+```
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; term &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; estimate &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; std.error &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; statistic &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; p.value &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; (Intercept) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3.965663 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0418899 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 94.66881 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; X &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.009815 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0116155 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 431.30246 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+
+
+```r
+b %&gt;% tidy() %&gt;% 
+  mutate(
+    p.value = scales::pvalue(p.value),
+    term = c("Intercept", "Approval rate")
+  ) %&gt;%
+  kable(caption = "Estimates using Simulated Data",
+    col.names = c("Predictor", "B", "SE", "t", "p"),
+    digits = c(0, 2, 3, 2, 3),
+    align = c("l", "r", "r", "r", "r")
+    )%&gt;%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+&lt;table class=" lightable-classic" style="font-family: Cambria; width: auto !important; margin-left: auto; margin-right: auto;"&gt;
+&lt;caption&gt;Estimates using Simulated Data&lt;/caption&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; Predictor &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; B &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; SE &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; t &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; p &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Intercept &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3.97 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.042 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 94.67 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; &amp;lt;0.001 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Approval rate &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5.01 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.012 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 431.30 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; &amp;lt;0.001 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+Check out the kableExtra [vignette](https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html) for more awesome tables in HTML. 
+
+---
+
+layout: true
+
+# Fixed-Effect Models
+
+---
+
+Using Laurent Berge's [FE introduction](https://cran.r-project.org/web/packages/fixest/vignettes/fixest_walkthrough.html)
+
+
+```r
+p_load(fixest)
+# Intra-EU15 trade
+data(trade) 
+glimpse(trade)
+```
+
+```
+#&gt; Rows: 38,325
+#&gt; Columns: 6
+#&gt; $ Destination &lt;fct&gt; LU, BE, LU, BE, LU, BE, LU, BE, LU, BE, LU, BE, LU, BE,...
+#&gt; $ Origin      &lt;fct&gt; BE, LU, BE, LU, BE, LU, BE, LU, BE, LU, BE, LU, BE, LU,...
+#&gt; $ Product     &lt;int&gt; 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 1...
+#&gt; $ Year        &lt;dbl&gt; 2007, 2007, 2007, 2007, 2007, 2007, 2007, 2007, 2007, 2...
+#&gt; $ dist_km     &lt;dbl&gt; 139.5719, 139.5719, 139.5719, 139.5719, 139.5719, 139.5...
+#&gt; $ Euros       &lt;dbl&gt; 2966697, 6755030, 57078782, 7117406, 17379821, 2622254,...
+```
+
+---
+
+
+### Structure
+
+
+```r
+#Estimates OLS with any number of fixed-effects.
+feols( dep_var ~ cov1 + cov2 | 
+         fe_1 + fe_2, data=df_name)
+# Note:  fe_1^fe_2 to create year-industry FE. 
+# Note: Can specify clustered se in summary.
+
+#Estimates GLM models with any number of fixed-effects.
+feglm( dep_var ~ cov1 + cov2 | 
+         fe_1 + fe_2, data=df_name)
+# Note:  Default is a poisson model.
+```
+
+
+Estimation is performed using parallel computing which you can control using the argument `nthreads`
+ 
+---
+
+### Example
+
+
+```r
+gravity_pois = fepois(Euros ~ log(dist_km) | 
+          Origin + Destination + Product + Year, data=trade)
+# Check out the details that stem from raw output. Very informative!
+print(gravity_pois)
+```
+
+```
+#&gt; Poisson estimation, Dep. Var.: Euros
+#&gt; Observations: 38,325 
+#&gt; Fixed-effects: Origin: 15,  Destination: 15,  Product: 20,  Year: 10
+#&gt; Standard-errors: Clustered (Origin) 
+#&gt;              Estimate Std. Error z value  Pr(&gt;|z|)    
+#&gt; log(dist_km)  -1.5279   0.115678 -13.208 &lt; 2.2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; Log-Likelihood: -7.025e+11   Adj. Pseudo R2: 0.764032
+#&gt;            BIC:  1.405e+12     Squared Cor.: 0.612021
+```
+
+
+---
+
+### Clustering in FE models
+
+
+```r
+# Individual clustering
+a=summary(gravity_pois, cluster="Origin") %&gt;% tidy()
+b=summary(gravity_pois, cluster="Destination") %&gt;% tidy()
+c=summary(gravity_pois, cluster="Product") %&gt;% tidy()
+d=summary(gravity_pois, cluster="Year") %&gt;% tidy()
+
+# Multi-way clustering
+e=summary(gravity_pois, cluster=c("Origin", "Destination")) %&gt;% tidy()
+f=summary(gravity_pois, cluster=c("Product", "Year")) %&gt;% tidy()
+
+# Set of results
+c((rbind(a,b,c,d,e,f)[,3]))
+```
+
+```
+#&gt; $std.error
+#&gt; [1] 0.115677844 0.100180138 0.098293542 0.007772921 0.130733604 0.095882852
+```
+
+---
+
+### Results
+
+
+```r
+# OLS model
+gravity_ols = feols(log(Euros) ~ log(dist_km) | 
+              Origin + Destination + Product + Year, trade)
+# Negative Binomial
+gravity_negbin = fenegbin(Euros ~ log(dist_km) | 
+              Origin + Destination + Product + Year, trade)
+# Present
+etable(gravity_pois, gravity_negbin, gravity_ols,
+      se = "twoway", #defaults to the first two FE's 
+      subtitles = c("Poisson", "Negative Binomial", "Gaussian")
+      # tex=TRUE will report results in LaTeX table format)
+```
+
+--
+
+For more on [exporting etable](https://cran.r-project.org/web/packages/fixest/vignettes/exporting_tables.html) with preset style.tex including AER format. 
+
+--
+
+
+```r
+# Multiple estimations: Stepwise FE starting with none. 
+res_multi = fepois(Euros ~ log(dist_km) | 
+            csw0(Year, Destination, Origin), trade)
+```
+
+
+---
+
+layout: true
+
+# Instrumental Variables
+
+---
+
+&lt;br&gt;
+
+Two solid options here;
+
+`fixest`: Benefits to sticking with the same package throughout! 
+
+`ivreg`: various regression diagnostics are supported.
+
+--
+
+&lt;br&gt;
+
+Material on [ivreg diagnostics](https://john-d-fox.github.io/ivreg/articles/Diagnostics-for-2SLS-Regression.html)
+
+---
+
+&lt;br&gt;
+
+`fixest`: 2SLS performed by adding formula for link between the endog(s) and the IV(s).
+
+--
+
+
+```r
+# Standard Layout
+reg_out = feols(dep ~ exo_cov1 + exo_cov2 | 
+                  fe1 + fe2 | # Fixed Effects
+                endo1 + endo2 ~ iv1 + iv2)
+```
+
+--
+
+1. Formula for regression using exogenous covariates
+2. Set of fixed effects 
+3. Formula for endogenous variables and IVs (stage one)
+
+---
+
+### Example
+
+
+```r
+base = iris
+names(base) = c("y", "x1", "x_endo_1", "x_inst_1", "fe")
+set.seed(2)
+base$x_inst_2 = 0.2 * base$y + 0.2 * base$x_endo_1 + rnorm(150, sd = 0.5)
+base$x_endo_2 = 0.2 * base$y - 0.2 * base$x_inst_1 + rnorm(150, sd = 0.5)
+
+est_iv_fe = feols(y ~ x1 | fe | x_endo_1 + x_endo_2 ~ x_inst_1 + x_inst_2, base)
+est_iv_fe %&gt;% tidy()
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-16">
+<col><col><col><col><col><tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">term</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">estimate</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">std.error</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">statistic</th><th style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: bold;">p.value</th></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">fit_x_endo_1</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.667</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.107</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">6.26</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.0246</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">fit_x_endo_2</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.414</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.178</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">2.33</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.145&nbsp;</td></tr>
+<tr>
+<td style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0.4pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">x1</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.452</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.153</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">2.94</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0.4pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; background-color: rgb(242, 242, 242); font-weight: normal;">0.0986</td></tr>
+</table>
+
+
+---
+
+
+```r
+summary(est_iv_fe)
+```
+
+```
+#&gt; TSLS estimation, Dep. Var.: y, Endo.: x_endo_1, x_endo_2, Instr.: x_inst_1, x_inst_2
+#&gt; Second stage: Dep. Var.: y
+#&gt; Observations: 150 
+#&gt; Fixed-effects: fe: 3
+#&gt; Standard-errors: Clustered (fe) 
+#&gt;              Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; fit_x_endo_1 0.666671   0.106558  6.2564 0.024608 *  
+#&gt; fit_x_endo_2 0.413839   0.177769  2.3280 0.145344    
+#&gt; x1           0.451680   0.153375  2.9449 0.098553 .  
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; RMSE: 0.327938     Adj. R2: 0.836626
+#&gt;                  Within R2: 0.585907
+#&gt; F-test (1st stage), x_endo_1: stat = 21.3   , p = 7.969e-9, on 2 and 144 DoF.
+#&gt; F-test (1st stage), x_endo_2: stat =  4.7226, p = 0.010315, on 2 and 144 DoF.
+#&gt;                   Wu-Hausman: stat =  1.3141, p = 0.271968, on 2 and 142 DoF.
+```
+
+---
+
+
+```r
+summary(est_iv_fe, stage = 1)[1]
+```
+
+```
+#&gt; [[1]]
+#&gt; TSLS estimation, Dep. Var.: x_endo_1, Endo.: x_endo_1, x_endo_2, Instr.: x_inst_1, x_inst_2
+#&gt; First stage: Dep. Var.: x_endo_1
+#&gt; Observations: 150 
+#&gt; Fixed-effects: fe: 3
+#&gt; Standard-errors: Clustered (fe) 
+#&gt;          Estimate Std. Error t value Pr(&gt;|t|) 
+#&gt; x_inst_1 0.705992   0.485614  1.4538 0.283198 
+#&gt; x_inst_2 0.202337   0.143302  1.4120 0.293457 
+#&gt; x1       0.189320   0.135622  1.3959 0.297507 
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; RMSE: 0.346509     Adj. R2: 0.959865
+#&gt;                  Within R2: 0.338407
+#&gt; F-test (1st stage): stat = 21.3, p = 7.969e-9, on 2 and 144 DoF.
+```
+
+---
+
+
+```r
+summary(est_iv_fe, stage = 1)[2]
+```
+
+```
+#&gt; [[1]]
+#&gt; TSLS estimation, Dep. Var.: x_endo_2, Endo.: x_endo_1, x_endo_2, Instr.: x_inst_1, x_inst_2
+#&gt; First stage: Dep. Var.: x_endo_2
+#&gt; Observations: 150 
+#&gt; Fixed-effects: fe: 3
+#&gt; Standard-errors: Clustered (fe) 
+#&gt;           Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; x_inst_1 -0.546745   0.081370 -6.7192 0.021440 *  
+#&gt; x_inst_2  0.183092   0.083446  2.1942 0.159464    
+#&gt; x1        0.153198   0.089148  1.7185 0.227851    
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; RMSE: 0.51208     Adj. R2: 0.040133
+#&gt;                 Within R2: 0.063919
+#&gt; F-test (1st stage): stat = 4.7226, p = 0.010315, on 2 and 144 DoF.
+```
+
+---
+### Results
+
+--
+
+&lt;br&gt;
+
+To produce a LaTeX output with associated first stage regressions:
+
+--
+
+
+```r
+etable(summary(est_iv_fe, stage = 1:2), 
+       fitstat = ~ . + ivfall + ivwaldall.p, tex=TRUE)
+```
+
+---
+
+`ivreg`: 2SLS performed by adding formula for link between the endog(s) and the IV(s).
+
+&lt;br&gt;
+
+--
+
+
+```r
+p_load(ivreg)
+# Standard Layout
+reg_out = ivreg(y ~ x1 + x2 | x1 + z1 + z2)
+# x1, z1, z2 are all exogenous values
+# x2 is the endogenous term
+```
+&lt;br&gt;
+
+--
+
+summary(reg_out) will yield diagnostic tests for weakness and over-ID. 
+
+---
+
+layout: true
+
+# Standard Errors 
+
+---
+
+&lt;br&gt;
+
+Often times empirical research requires the correct choice of SEs.
+
+--
+
+More times than not, individuals will repeatedly run a given model under different SE settings.
+
+--
+
+As highlighted previously, model only needs to be run once to assess SE options. 
+
+--
+
+We will run a model .hi-slate[only once] and adjust SEs on the backend. 
+
+--
+
+For more details, check out Grant McDermott's [piece on SEs](https://grantmcdermott.com/better-way-adjust-SEs/#motivation) 
+
+---
+
+### Sandwich
+
+
+
+```r
+p_load(sandwich,lmtest)
+data('PetersenCL')
+
+m = lm(y ~ x, data = PetersenCL)
+summary(m)
+```
+
+```
+#&gt; 
+#&gt; Call:
+#&gt; lm(formula = y ~ x, data = PetersenCL)
+#&gt; 
+#&gt; Residuals:
+#&gt;     Min      1Q  Median      3Q     Max 
+#&gt; -6.7611 -1.3680 -0.0166  1.3387  8.6779 
+#&gt; 
+#&gt; Coefficients:
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept)  0.02968    0.02836   1.047    0.295    
+#&gt; x            1.03483    0.02858  36.204   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+#&gt; 
+#&gt; Residual standard error: 2.005 on 4998 degrees of freedom
+#&gt; Multiple R-squared:  0.2078,	Adjusted R-squared:  0.2076 
+#&gt; F-statistic:  1311 on 1 and 4998 DF,  p-value: &lt; 2.2e-16
+```
+
+---
+
+### Sandwich
+
+
+```r
+# specification of the covariance matrix: homoskedastic
+coeftest(m, vcov = vcovHC(m, type="const"))
+```
+
+```
+#&gt; 
+#&gt; t test of coefficients:
+#&gt; 
+#&gt;             Estimate Std. Error t value Pr(&gt;|t|)    
+#&gt; (Intercept) 0.029680   0.028359  1.0466   0.2954    
+#&gt; x           1.034833   0.028583 36.2041   &lt;2e-16 ***
+#&gt; ---
+#&gt; Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+```
+
+```r
+# More SEs
+type = c("HC3", "const", "HC", "HC0", "HC1", "HC2", "HC4", "HC4m", "HC5")
+```
+
+---
+
+### More SEs! 
+
+
+```r
+vc = list(
+  "Standard"              = vcov(m),
+  "Sandwich (basic)"      = sandwich(m),
+  "Clustered"             = vcovCL(m, cluster = ~ firm),
+  "Clustered (two-way)"   = vcovCL(m, cluster = ~ firm + year),
+  "HC3"                   = vcovHC(m),
+  "Andrews' kernel HAC"   = kernHAC(m),
+  "Newey-West"            = NeweyWest(m),
+  "Bootstrap"             = vcovBS(m),
+  "Bootstrap (clustered)" = vcovBS(m, cluster = ~ firm)
+  )
+```
+
+Be sure to check out the links for further details on each of these items. 
+
+---
+
+exclude: true
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>

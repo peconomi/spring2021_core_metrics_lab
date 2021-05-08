@@ -1,0 +1,509 @@
+---
+title: "Regression Analysis"
+subtitle: "EC 607 Metrics, Tutorial 6"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,scales,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+## Today
+
+- Ordinary Least Squares
+- Regression Output
+- Fixed-Effect Models
+- Instrumental Variables
+- Standard Errors 
+
+---
+
+layout: true
+
+# Regression Analysis
+---
+
+<br>
+
+With such a wide array of package options, confusion can easily arise. 
+
+--
+
+Additionally, some packages are more cumbersome than others.
+
+--
+
+In order to alleviate some of these concerns, I'll run through a set of recommended packages. 
+
+
+---
+
+layout: true
+
+# Ordinary Least Squares
+
+---
+
+<br>
+
+While `lm()` from the stats package is a common go to for fitting linear models, the `fixest` package is an alternative worth considering. 
+
+--
+
+```{r}
+# Lets generate some data to fit into our OLS functions
+set.seed(12345)
+X = runif(10000, 2, 5)
+e = rnorm(10000, 0, 1)
+Y = 4 + 5*X + e
+
+# Do we return correct coefficients?
+Xm = matrix(c(rep(1,10000), X), ncol=2)
+t(solve(t(Xm) %*% Xm) %*% (t(Xm) %*% Y))
+```
+
+---
+
+<br>
+
+.pull-left[
+```{r}
+d_frame = bind_cols(Y,X) %>% 
+  rename(Y=...1, X=...2)
+a = lm(Y ~ X, data=d_frame)
+a %>% tidy() %>% select(1:3)
+```
+]
+
+--
+
+.pull-right[
+```{r}
+# Alternative means
+p_load(fixest)
+b=feols(Y ~ X, data=d_frame)
+b %>% tidy()%>% select(1:3)
+```
+]
+
+---
+
+layout: true
+
+# Regression Output
+
+---
+
+```{r}
+# Using export_summs()
+p_load(jtools)
+export_summs(a,b, model.names = c("lm()", "feols()"), 
+    coefs = c("constant" = "(Intercept)", "covariate" = "X"))
+```
+
+---
+
+```{r}
+# Using stargazer, b object unrecognized. type=text,latex,html
+p_load(stargazer)
+stargazer(a, title="Regression Results", type="html",
+          single.row=TRUE,ci=TRUE, ci.level=0.95,
+          omit.stat=c("f", "ser"))
+```
+
+---
+
+<table style="text-align:center"><caption><strong>Regression Results</strong></caption>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td><em>Dependent variable:</em></td></tr>
+<tr><td></td><td colspan="1" style="border-bottom: 1px solid black"></td></tr>
+<tr><td style="text-align:left"></td><td>Y</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">X</td><td>5.010<sup>***</sup> (4.987, 5.033)</td></tr>
+<tr><td style="text-align:left">Constant</td><td>3.966<sup>***</sup> (3.884, 4.048)</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>10,000</td></tr>
+<tr><td style="text-align:left">R<sup>2</sup></td><td>0.949</td></tr>
+<tr><td style="text-align:left">Adjusted R<sup>2</sup></td><td>0.949</td></tr>
+<tr><td colspan="2" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"><em>Note:</em></td><td style="text-align:right"><sup>*</sup>p<0.1; <sup>**</sup>p<0.05; <sup>***</sup>p<0.01</td></tr>
+</table>
+
+---
+
+
+
+```{r}
+# Using kable()
+a %>% tidy() %>% kable()
+b %>% tidy() %>% kable()
+```
+
+---
+
+```{r}
+b %>% tidy() %>% 
+  mutate(
+    p.value = scales::pvalue(p.value),
+    term = c("Intercept", "Approval rate")
+  ) %>%
+  kable(caption = "Estimates using Simulated Data",
+    col.names = c("Predictor", "B", "SE", "t", "p"),
+    digits = c(0, 2, 3, 2, 3),
+    align = c("l", "r", "r", "r", "r")
+    )%>%
+  kable_classic(full_width = F, html_font = "Cambria")
+```
+
+Check out the kableExtra [vignette](https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html) for more awesome tables in HTML. 
+
+---
+
+layout: true
+
+# Fixed-Effect Models
+
+---
+
+Using Laurent Berge's [FE introduction](https://cran.r-project.org/web/packages/fixest/vignettes/fixest_walkthrough.html)
+
+```{r}
+p_load(fixest)
+# Intra-EU15 trade
+data(trade) 
+glimpse(trade)
+```
+
+---
+
+
+### Structure
+
+```{r, eval=FALSE}
+#Estimates OLS with any number of fixed-effects.
+feols( dep_var ~ cov1 + cov2 | 
+         fe_1 + fe_2, data=df_name)
+# Note:  fe_1^fe_2 to create year-industry FE. 
+# Note: Can specify clustered se in summary.
+
+#Estimates GLM models with any number of fixed-effects.
+feglm( dep_var ~ cov1 + cov2 | 
+         fe_1 + fe_2, data=df_name)
+# Note:  Default is a poisson model.
+
+```
+
+
+Estimation is performed using parallel computing which you can control using the argument `nthreads`
+ 
+---
+
+### Example
+
+```{r}
+gravity_pois = fepois(Euros ~ log(dist_km) | 
+          Origin + Destination + Product + Year, data=trade)
+# Check out the details that stem from raw output. Very informative!
+print(gravity_pois)
+```
+
+
+---
+
+### Clustering in FE models
+
+```{r}
+# Individual clustering
+a=summary(gravity_pois, cluster="Origin") %>% tidy()
+b=summary(gravity_pois, cluster="Destination") %>% tidy()
+c=summary(gravity_pois, cluster="Product") %>% tidy()
+d=summary(gravity_pois, cluster="Year") %>% tidy()
+
+# Multi-way clustering
+e=summary(gravity_pois, cluster=c("Origin", "Destination")) %>% tidy()
+f=summary(gravity_pois, cluster=c("Product", "Year")) %>% tidy()
+
+# Set of results
+c((rbind(a,b,c,d,e,f)[,3]))
+```
+
+---
+
+### Results
+
+```{r, eval=FALSE}
+# OLS model
+gravity_ols = feols(log(Euros) ~ log(dist_km) | 
+              Origin + Destination + Product + Year, trade)
+# Negative Binomial
+gravity_negbin = fenegbin(Euros ~ log(dist_km) | 
+              Origin + Destination + Product + Year, trade)
+# Present
+etable(gravity_pois, gravity_negbin, gravity_ols,
+      se = "twoway", #defaults to the first two FE's 
+      subtitles = c("Poisson", "Negative Binomial", "Gaussian")
+      # tex=TRUE will report results in LaTeX table format)
+```
+
+--
+
+For more on [exporting etable](https://cran.r-project.org/web/packages/fixest/vignettes/exporting_tables.html) with preset style.tex including AER format. 
+
+--
+
+```{r}
+# Multiple estimations: Stepwise FE starting with none. 
+res_multi = fepois(Euros ~ log(dist_km) | 
+            csw0(Year, Destination, Origin), trade)
+```
+
+
+---
+
+layout: true
+
+# Instrumental Variables
+
+---
+
+<br>
+
+Two solid options here;
+
+`fixest`: Benefits to sticking with the same package throughout! 
+
+`ivreg`: various regression diagnostics are supported.
+
+--
+
+<br>
+
+Material on [ivreg diagnostics](https://john-d-fox.github.io/ivreg/articles/Diagnostics-for-2SLS-Regression.html)
+
+---
+
+<br>
+
+`fixest`: 2SLS performed by adding formula for link between the endog(s) and the IV(s).
+
+--
+
+```{r, eval=FALSE}
+# Standard Layout
+reg_out = feols(dep ~ exo_cov1 + exo_cov2 | 
+                  fe1 + fe2 | # Fixed Effects
+                endo1 + endo2 ~ iv1 + iv2)
+```
+
+--
+
+1. Formula for regression using exogenous covariates
+2. Set of fixed effects 
+3. Formula for endogenous variables and IVs (stage one)
+
+---
+
+### Example
+
+```{r}
+base = iris
+names(base) = c("y", "x1", "x_endo_1", "x_inst_1", "fe")
+set.seed(2)
+base$x_inst_2 = 0.2 * base$y + 0.2 * base$x_endo_1 + rnorm(150, sd = 0.5)
+base$x_endo_2 = 0.2 * base$y - 0.2 * base$x_inst_1 + rnorm(150, sd = 0.5)
+
+est_iv_fe = feols(y ~ x1 | fe | x_endo_1 + x_endo_2 ~ x_inst_1 + x_inst_2, base)
+est_iv_fe %>% tidy()
+```
+
+---
+
+```{r}
+summary(est_iv_fe)
+```
+
+---
+
+```{r}
+summary(est_iv_fe, stage = 1)[1]
+```
+
+---
+
+```{r}
+summary(est_iv_fe, stage = 1)[2]
+```
+
+---
+### Results
+
+--
+
+<br>
+
+To produce a LaTeX output with associated first stage regressions:
+
+--
+
+```{r, eval=FALSE}
+etable(summary(est_iv_fe, stage = 1:2), 
+       fitstat = ~ . + ivfall + ivwaldall.p, tex=TRUE)
+```
+
+---
+
+`ivreg`: 2SLS performed by adding formula for link between the endog(s) and the IV(s).
+
+<br>
+
+--
+
+```{r, eval=FALSE}
+p_load(ivreg)
+# Standard Layout
+reg_out = ivreg(y ~ x1 + x2 | x1 + z1 + z2)
+# x1, z1, z2 are all exogenous values
+# x2 is the endogenous term
+```
+<br>
+
+--
+
+summary(reg_out) will yield diagnostic tests for weakness and over-ID. 
+
+---
+
+layout: true
+
+# Standard Errors 
+
+---
+
+<br>
+
+Often times empirical research requires the correct choice of SEs.
+
+--
+
+More times than not, individuals will repeatedly run a given model under different SE settings.
+
+--
+
+As highlighted previously, model only needs to be run once to assess SE options. 
+
+--
+
+We will run a model .hi-slate[only once] and adjust SEs on the backend. 
+
+--
+
+For more details, check out Grant McDermott's [piece on SEs](https://grantmcdermott.com/better-way-adjust-SEs/#motivation) 
+
+---
+
+### Sandwich
+
+
+```{r}
+p_load(sandwich,lmtest)
+data('PetersenCL')
+
+m = lm(y ~ x, data = PetersenCL)
+summary(m)
+```
+
+---
+
+### Sandwich
+
+```{r}
+# specification of the covariance matrix: homoskedastic
+coeftest(m, vcov = vcovHC(m, type="const"))
+
+# More SEs
+type = c("HC3", "const", "HC", "HC0", "HC1", "HC2", "HC4", "HC4m", "HC5")
+```
+
+---
+
+### More SEs! 
+
+```{r}
+vc = list(
+  "Standard"              = vcov(m),
+  "Sandwich (basic)"      = sandwich(m),
+  "Clustered"             = vcovCL(m, cluster = ~ firm),
+  "Clustered (two-way)"   = vcovCL(m, cluster = ~ firm + year),
+  "HC3"                   = vcovHC(m),
+  "Andrews' kernel HAC"   = kernHAC(m),
+  "Newey-West"            = NeweyWest(m),
+  "Bootstrap"             = vcovBS(m),
+  "Bootstrap (clustered)" = vcovBS(m, cluster = ~ firm)
+  )
+```
+
+Be sure to check out the links for further details on each of these items. 
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-6.html", output = "Tutorial-6.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
