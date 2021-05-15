@@ -762,6 +762,140 @@ vc = list(
 
 Be sure to check out the links for further details on each of these items. 
 
+
+---
+
+layout: true
+
+# Binary Outcome Models
+
+---
+
+&lt;br&gt;
+
+* Two possible outcomes. Normally estimated by MLE.
+
+--
+
+* Probability of outcome I equals `\(p\)`, probabiliy of outcome II equal `\(1-p\)`. 
+
+--
+
+* This `\(p\)` will vary across individuals as a function of regressors. 
+
+--
+
+* Logit and probit specify two function forms for this prob as function of regressors. 
+
+--
+
+* OLS ignores discreteness of `\(y_i\)`, would not constrain `\(p \in [0,1]\)` 
+
+
+---
+
+### Example: Fishing Choice Model
+
+--
+
+$$
+`\begin{aligned}
+y_i =&amp; \{1, 0\}  \text{ fishing from charter boat (1) or pier (0)}\\
+x_i =&amp; \ln(\text{relp}_i) = \ln(\text{price}_{\text{charter,i}} / \text{price}_{\text{pier,i}}) 
+\end{aligned}`
+$$
+
+--
+
+`\(p_i\)` decreases as the price of the chartered boat service increases and price of pier decreases. These prices vary across individuals. 
+
+
+
+
+--
+
+Logit Model ensures that 0 &lt; `\(p_i\)` &lt; 1.
+
+$$
+`\begin{aligned}
+p_i = Pr[ \ y_i=1 \ | \ x_i \ ] = &amp; \frac{\exp(\beta_1 + \beta_2 x_i)}{1+\exp(\beta_1 + \beta_2 x_i)}\\
+\text{Marginal Effect: } \frac{\partial p_i}{\partial x_i} = &amp; \frac{\exp(\beta_1 + \beta_2 x_i)}{(1+ \exp(\beta_1 + \beta_2 x_i))^2} \beta_2
+\end{aligned}`
+$$
+--
+
+Actual marginal effect approximates to `\(\bar y (1- \bar y) \hat \beta_2\)`
+
+
+
+---
+
+Probit Model also ensures that 0 &lt; `\(p_i\)` &lt; 1.
+
+
+$$
+`\begin{aligned}
+&amp; p_i =Pr[ \ y_i=1 \ | \ x_i \ ] =   \ \phi (\beta_1 + \beta_2 x_i) = \int_{-\infty}^{\beta_1 + \beta_2 x_i} (2\pi)^{-\frac{1}{2}} \ e^{- \frac{z^2}{2}} dz  \\
+&amp; \text{where } \phi \text{ represents the CDF for the standard normal }\\
+&amp; \text{Marginal Effect: } \frac{\partial p_i}{\partial x_i} =   \phi (\beta_1 + \beta_2 x_i) \beta_2
+\end{aligned}`
+$$
+--
+
+What about in the case of a vector of regressors `\(x\)`?
+
+`\(p_i \equiv Pr[ y_i = 1 | x ] = F(x_i' \beta)\)` where F(.) is a specified function.  
+
+--
+
+`\(F(.)\)`: CDF of logistic distribution (logit), standard normal CDF (probit).
+
+--
+
+Check out .hi-slate[Cameron &amp; Trivedi, Microeconomic Methods and Applications] for more. 
+
+---
+
+How do we run this in R? `fixest::feglm()` or `stats::glm()`
+
+
+```r
+df_trade &lt;- trade %&gt;% mutate(eur_bin = ifelse(Euros &gt;= 4.615e+06, 1, 0))
+res_trade &lt;- feglm(eur_bin ~ log(dist_km) | 
+        Origin + Destination + Product + Year, df_trade, family=binomial)
+res_trade2 &lt;- feols(eur_bin ~ log(dist_km) | 
+        Origin + Destination + Product + Year, df_trade)
+export_summs(res_trade, res_trade2,
+             model.names=c("Logit", "OLS"),
+             statistics=c("nobs", "r.squared","pseudo.r.squared"))
+```
+
+<table class="huxtable" style="border-collapse: collapse; border: 0px; margin-bottom: 2em; margin-top: 2em; ; margin-left: auto; margin-right: auto;  " id="tab:unnamed-chunk-26">
+<col><col><col><tr>
+<th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;"></th><th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">Logit</th><th style="vertical-align: top; text-align: center; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">OLS</th></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">log(dist_km)</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">-2.80 ***</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">-0.28 ***</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;"></th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.23)&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.4pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">(0.03)&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">nobs</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">38325&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0.4pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">38325&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">r.squared</th><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.52&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">pseudo.r.squared</th><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">0.54&nbsp;&nbsp;&nbsp;&nbsp;</td><td style="vertical-align: top; text-align: right; white-space: normal; border-style: solid solid solid solid; border-width: 0pt 0pt 0.8pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+<tr>
+<th colspan="3" style="vertical-align: top; text-align: left; white-space: normal; border-style: solid solid solid solid; border-width: 0.8pt 0pt 0pt 0pt;    padding: 6pt 6pt 6pt 6pt; font-weight: normal;"> *** p &lt; 0.001;  ** p &lt; 0.01;  * p &lt; 0.05.</th></tr>
+</table>
+
+
+
+---
+
+Propensity Scores?
+
+&lt;img src="Tutorial-6_files/figure-html/unnamed-chunk-27-1.svg" width="80%" style="display: block; margin: auto;" /&gt;
+
+
 ---
 
 exclude: true

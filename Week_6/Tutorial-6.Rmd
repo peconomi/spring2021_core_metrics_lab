@@ -497,6 +497,136 @@ vc = list(
 
 Be sure to check out the links for further details on each of these items. 
 
+
+---
+
+layout: true
+
+# Binary Outcome Models
+
+---
+
+<br>
+
+* Two possible outcomes. Normally estimated by MLE.
+
+--
+
+* Probability of outcome I equals $p$, probabiliy of outcome II equal $1-p$. 
+
+--
+
+* This $p$ will vary across individuals as a function of regressors. 
+
+--
+
+* Logit and probit specify two function forms for this prob as function of regressors. 
+
+--
+
+* OLS ignores discreteness of $y_i$, would not constrain $p \in [0,1]$ 
+
+
+---
+
+### Example: Fishing Choice Model
+
+--
+
+$$
+\begin{aligned}
+y_i =& \{1, 0\}  \text{ fishing from charter boat (1) or pier (0)}\\
+x_i =& \ln(\text{relp}_i) = \ln(\text{price}_{\text{charter,i}} / \text{price}_{\text{pier,i}}) 
+\end{aligned}
+$$
+
+--
+
+$p_i$ decreases as the price of the chartered boat service increases and price of pier decreases. These prices vary across individuals. 
+
+
+
+
+--
+
+Logit Model ensures that 0 < $p_i$ < 1.
+
+$$
+\begin{aligned}
+p_i = Pr[ \ y_i=1 \ | \ x_i \ ] = & \frac{\exp(\beta_1 + \beta_2 x_i)}{1+\exp(\beta_1 + \beta_2 x_i)}\\
+\text{Marginal Effect: } \frac{\partial p_i}{\partial x_i} = & \frac{\exp(\beta_1 + \beta_2 x_i)}{(1+ \exp(\beta_1 + \beta_2 x_i))^2} \beta_2
+\end{aligned}
+$$
+--
+
+Actual marginal effect approximates to $\bar y (1- \bar y) \hat \beta_2$
+
+```{r, include=FALSE}
+(452/630)*(1- (452/630))*(-1.823)
+```
+
+---
+
+Probit Model also ensures that 0 < $p_i$ < 1.
+
+
+$$
+\begin{aligned}
+& p_i =Pr[ \ y_i=1 \ | \ x_i \ ] =   \ \phi (\beta_1 + \beta_2 x_i) = \int_{-\infty}^{\beta_1 + \beta_2 x_i} (2\pi)^{-\frac{1}{2}} \ e^{- \frac{z^2}{2}} dz  \\
+& \text{where } \phi \text{ represents the CDF for the standard normal }\\
+& \text{Marginal Effect: } \frac{\partial p_i}{\partial x_i} =   \phi (\beta_1 + \beta_2 x_i) \beta_2
+\end{aligned}
+$$
+--
+
+What about in the case of a vector of regressors $x$?
+
+$p_i \equiv Pr[ y_i = 1 | x ] = F(x_i' \beta)$ where F(.) is a specified function.  
+
+--
+
+$F(.)$: CDF of logistic distribution (logit), standard normal CDF (probit).
+
+--
+
+Check out .hi-slate[Cameron & Trivedi, Microeconomic Methods and Applications] for more. 
+
+---
+
+How do we run this in R? `fixest::feglm()` or `stats::glm()`
+
+```{r}
+df_trade <- trade %>% mutate(eur_bin = ifelse(Euros >= 4.615e+06, 1, 0))
+res_trade <- feglm(eur_bin ~ log(dist_km) | 
+        Origin + Destination + Product + Year, df_trade, family=binomial)
+res_trade2 <- feols(eur_bin ~ log(dist_km) | 
+        Origin + Destination + Product + Year, df_trade)
+export_summs(res_trade, res_trade2,
+             model.names=c("Logit", "OLS"),
+             statistics=c("nobs", "r.squared","pseudo.r.squared"))
+```
+
+
+---
+
+Propensity Scores?
+
+```{r, echo=FALSE, out.width="80%"}
+#plot(res_trade[["fitted.values"]])
+phat_l = c(res_trade[["fitted.values"]])
+phat_o = c(res_trade2[["fitted.values"]])
+plot_df = bind_cols(df_trade[,5], phat_l, phat_o, df_trade[,7])
+colnames(plot_df) <- c("dist", "phat_l", "phat_o", "eur_bin")
+plot_df <- plot_df %>% arrange(desc(phat_l))
+plot_dfo <- plot_df %>% arrange(desc(phat_o))
+
+ggplot(plot_df, aes(x=1:nrow(plot_df), y=phat_l))+
+  geom_point( color="blue") + xlab(NULL) + ylab("p")+
+  geom_line(data=plot_dfo, aes(x=1:nrow(plot_df), y=phat_o), linetype = "longdash")+
+  geom_point(aes(x=1:nrow(plot_df), y= eur_bin), alpha=0.5) + theme_pander() 
+```
+
+
 ---
 
 exclude: true

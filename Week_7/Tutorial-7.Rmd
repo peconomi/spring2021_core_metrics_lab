@@ -1,0 +1,631 @@
+---
+title: "Directed Acyclic Graphs (DAGs)"
+subtitle: "EC 607 Metrics, Tutorial 7"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,scales,ggdag,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+## Today
+
+- Recap DAGs
+- Simple DAG
+- Adding Chains
+- Collider Bias
+
+---
+
+layout: true
+
+# Recap
+---
+
+<br>
+
+*  Graphical representation of a chain of causal effects. 
+
+--
+
+* Explain causality in terms of counterfactuals. 
+
+--
+
+* Nodes for random variables, random variables assumed to follow some data-generating process.
+
+--
+
+* Causal effects defined as comparison between two states of world;<br> one state when intervention occured on some value and another state where it did not occur under some other intervention. 
+
+--
+
+* Effects are eiether direct or mediated by a third variable.  
+
+
+---
+
+layout: true
+
+# Simple DAG
+
+---
+
+```{r}
+p_load(dagitty,ggdag)
+
+g <- dagitty("dag{ 
+  a -> b ;
+  b -> c ;
+  d -> c
+ }")
+#plot( graphLayout(g))
+```
+
+
+```{r}
+# Evaluating linkages
+parents(g, "c")
+children(g, "b")
+```
+
+---
+
+### Simple DAG
+
+
+
+```{r, echo=FALSE, out.width="90%"}
+p_load(dagitty, ggdag)
+
+#dagitty(x, layout = FALSE)
+g <- dagitty("dag{ 
+  a -> b ;
+  b -> c ;
+  d -> c
+ }")
+plot( graphLayout(g))
+```
+
+
+
+---
+
+First, assign your random variable linkages and their coordinates.
+
+```{r}
+p_load(data.table)
+
+dag_full = dagify(
+  Y ~ D,
+  Y ~ W,
+  D ~ W,
+  coords = tibble(
+    name = c("Y", "D", "W"),
+    x = c(1, 3, 2),
+    y = c(2, 2, 1)  ) )
+```
+
+
+---
+
+We can include information for segments in `data.table` format.
+
+```{r}
+# Convert to data.table
+dag_dt = dag_full %>% ggplot2::fortify() %>% setDT()
+dag_dt[, `:=`(
+  path1 = (name == "D" & to == "Y") | (name == "Y"),
+  path2 = (name == "D" & to == "W") | (name == "W" & to == "Y") | (name == "Y")
+)]
+```
+
+---
+
+Having set up our mapping, we just need co-ordinates for causal arrows.
+
+```{r}
+# Shorten segments
+mult = 0.15
+dag_dt[, `:=`(
+  xa = x + (xend-x) * (mult),
+  ya = y + (yend-y) * (mult),
+  xb = x + (xend-x) * (1-mult),
+  yb = y + (yend-y) * (1-mult)
+)]
+```
+
+
+---
+
+<br>
+
+Using ggplot and the segment points, we can begin visualizing. 
+
+
+```{r}
+# Plot the full DAG
+p1 = ggplot(
+  data = dag_dt,
+  aes(x = x, y = y, xend = xend, yend = yend)
+) +
+geom_point(
+  size = 20,
+  fill = "white",
+  color = slate,
+  shape = 21,
+  stroke = 0.6
+) 
+```
+
+---
+
+```{r, echo=FALSE}
+p1
+```
+
+---
+
+<br>
+
+We then add our causal arrows using segment info.
+
+```{r, warning=FALSE, message=FALSE}
+p2 = p1+
+geom_curve(
+  aes(x = xa, y = ya, xend = xb, yend = yb),
+  curvature = 0,
+  arrow = arrow(length = unit(0.07, "npc")),
+  color = slate,
+  size = 1.2,
+  lineend = "round"
+) 
+```
+
+---
+
+```{r, echo=FALSE}
+p2
+```
+
+
+---
+
+Lastly, update the nodes with corresponding variables and adjust appearance. 
+
+```{r}
+p3 = p2+
+geom_text(
+  data = dag_dt[,.(name,x,y,xend=x,yend=y)] %>% unique(),
+  aes(x = x, y = y, label = name),
+  family = "Fira Sans Medium",
+  size = 8,
+  color = slate,
+  fontface = "bold"
+) +
+theme_void() +
+theme(
+  legend.position = "none",
+) +
+coord_cartesian(
+  xlim = c(dag_dt[,min(x)]*0.95, dag_dt[,max(x)]*1.05),
+  ylim = c(dag_dt[,min(y)]*0.8, dag_dt[,max(y)]*1.1)
+)
+```
+
+---
+
+```{r, echo=FALSE}
+p3
+```
+
+---
+
+layout: true
+
+# Chains
+
+---
+
+Let us denote *associated* changes of A on C through B using a DAG. 
+
+```{r}
+bb3_ex = dagify(
+  B ~ A, C ~ B,
+  coords = tibble(
+    name = LETTERS[1:3],
+    x = -1:1, y = 0  )
+)
+# Convert to data.table
+bb3_dt = bb3_ex %>% fortify() %>% setDT()
+bb3_dt
+```
+
+---
+
+Again we'll plot our coordinates for the segments. 
+
+```{r}
+# Shorten segments
+mult = 0.25
+bb3_dt[, `:=`(
+  xa = x + (xend-x) * (mult),
+  ya = y + (yend-y) * (mult),
+  xb = x + (xend-x) * (1-mult),
+  yb = y + (yend-y) * (1-mult)
+)]
+```
+
+---
+
+We can begin visualizing. We'll start simple with causal arrows.
+
+```{r}
+# Plot the DAG
+gg_chain = ggplot(
+  data = bb3_dt,
+  aes(x = x, y = y)
+) +
+geom_curve(
+  aes(x = xa, y = ya, xend = xb, yend = yb),
+  curvature = 0,
+  arrow = arrow(length = unit(0.09, "npc")),
+  color = purple,
+  size = 0.9,
+  lineend = "round"
+)
+```
+
+---
+
+<br>
+
+```{r, out.width="80%", echo=FALSE}
+gg_chain
+```
+
+---
+
+Adding our nodes.
+
+```{r}
+gg_chain = gg_chain +
+geom_point(
+  size = 20,
+  fill = "white",
+  color = purple,
+  shape = 21,
+  stroke = 0.6
+)
+```
+
+
+
+---
+
+<br>
+
+```{r, out.width="80%", echo=FALSE}
+gg_chain
+```
+
+---
+
+Node text and cleaning up the appearance. 
+
+```{r}
+gg_chain = gg_chain   +
+geom_text(
+  aes(x = x, y = y, label = name),
+  family = "Fira Sans Medium",
+  size = 8,
+  color = purple,
+  fontface = "bold"
+) +
+theme_void() +
+theme(
+  legend.position = "none",
+) +
+coord_cartesian(
+  xlim = c(-1.5, 1.5),
+  ylim = c(-1, 0.5)
+)
+```
+
+---
+
+<br>
+
+```{r, out.width="80%", echo=FALSE}
+gg_chain
+```
+
+---
+
+<br>
+
+The chain is easily added to this chart. 
+
+```{r, out.width="80%", eval=FALSE}
+curve_dt = tibble(
+  x = c(-1, 0, 1),
+  y = c(0, -0.8, 0)
+) %>% spline(n = 101) %>% as.data.table()
+
+gg_chain +
+geom_line(
+  data = curve_dt,
+  color = orange,
+  linetype = "dashed",
+  size = 0.8
+)
+```
+
+
+---
+
+<br>
+
+```{r, out.width="80%", echo=FALSE}
+curve_dt = tibble(
+  x = c(-1, 0, 1),
+  y = c(0, -0.8, 0)
+) %>% spline(n = 101) %>% as.data.table()
+
+gg_chain +
+geom_line(
+  data = curve_dt,
+  color = orange,
+  linetype = "dashed",
+  size = 0.8
+)
+```
+
+
+
+Notice anything off? 
+
+---
+
+layout: true
+
+# Collider Bias
+
+---
+
+```{r, message=FALSE, warning=FALSE, eval=FALSE}
+p_load(tidyverse, jtools)
+
+tb <- tibble(
+  female = ifelse(runif(10000)>=0.5,1,0),
+  ability = rnorm(10000),
+  discrimination = female,
+  occupation = 1 + 2*ability + 0*female - 2*discrimination + rnorm(10000),
+  wage = 1 - 1*discrimination + 1*occupation + 2*ability + rnorm(10000) 
+)
+```
+
+How would we represent these random variables in a DAG?
+
+--
+
+$$
+\begin{aligned}
+&F \implies D, \ \ D \implies O, \ \  D \implies Y\\
+&A \implies O, \ \ A \implies Y, \ \  O \implies Y
+\end{aligned}
+$$
+
+--
+
+Using an example from [Causal Inference: The Mixtape](https://mixtape.scunning.com/dag#more-examples-of-collider-bias)
+
+---
+
+$$
+\begin{aligned}
+&F \implies D, \ \ D \implies O, \ \  D \implies Y\\
+&A \implies O, \ \ A \implies Y, \ \  O \implies Y
+\end{aligned}
+$$
+
+--
+
+```{r, eval=FALSE}
+# F, O, D, Y , A   (X range: 0,3 , Y range: 0,5)
+bb3_ex = dagify(
+  D ~ F, O ~ D, Y ~ D, 
+  O ~ A, Y ~ A, Y ~ O,
+  coords = tibble(
+    name = c("F","O", "D", "Y", "A"),
+    x =  c(0, 0, 2, 3, 3),
+    y = c(3, 0, 5, 3, 0)
+  )
+)
+# Convert to data.table
+bb3_dt = bb3_ex %>% fortify() %>% setDT()
+# Shorten segments
+mult = 0.15
+bb3_dt[, `:=`(
+  xa = x + (xend-x) * (mult),
+  ya = y + (yend-y) * (mult),
+  xb = x + (xend-x) * (1-mult),
+  yb = y + (yend-y) * (1-mult)
+)]
+```
+
+---
+
+$$
+\begin{aligned}
+&F \implies D, \ \ D \implies O, \ \  D \implies Y\\
+&A \implies O, \ \ A \implies Y, \ \  O \implies Y
+\end{aligned}
+$$
+
+
+```{r, echo=FALSE}
+# F, O, D, Y , A   (X range: 0,3 , Y range: 0,5)
+bb3_ex = dagify(
+  D ~ F,
+  O ~ D,
+  Y ~ D, 
+  O ~ A,
+  Y ~ A,
+  Y ~ O,
+  coords = tibble(
+    name = c("F","O", "D", "Y", "A"),
+    x =  c(0, 0, 2, 3, 3),
+    y = c(3, 0, 5, 3, 0)
+  )
+)
+# Convert to data.table
+bb3_dt = bb3_ex %>% fortify() %>% setDT()
+# Shorten segments
+mult = 0.15
+bb3_dt[, `:=`(
+  xa = x + (xend-x) * (mult),
+  ya = y + (yend-y) * (mult),
+  xb = x + (xend-x) * (1-mult),
+  yb = y + (yend-y) * (1-mult)
+)]
+```
+
+
+
+---
+
+$$
+\begin{aligned}
+&F \implies D, \ \ D \implies O, \ \  D \implies Y\\
+&A \implies O, \ \ A \implies Y, \ \  O \implies Y
+\end{aligned}
+$$
+
+```{r, out.width="80%", echo=FALSE}
+gg_discr = ggplot(
+  data = bb3_dt,
+  aes(x = x, y = y)
+) +
+  geom_curve(
+  aes(x = xa, y = ya, xend = xb, yend = yb),
+  curvature = 0,
+  arrow = arrow(length = unit(0.03, "npc")),
+  color = purple,
+  size = 0.9,
+  lineend = "round"
+) +
+geom_point(
+  size = 20,
+  fill = "white",
+  color = purple,
+  shape = 21,
+  stroke = 0.6
+)+
+geom_text(
+  aes(x = x, y = y, label = name),
+  family = "Fira Sans Medium",
+  size = 8,
+  color = purple,
+  fontface = "bold"
+) + theme_void() +
+theme(
+  legend.position = "none",
+) +
+coord_cartesian(
+  xlim = c(-0.5, 3.5),
+  ylim = c(-0.5, 5.5)
+)
+# Plot it
+gg_discr
+```
+
+---
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+p_load(tidyverse, jtools)
+
+tb <- tibble(
+  female = ifelse(runif(10000)>=0.5,1,0),
+  ability = rnorm(10000),
+  discrimination = female,
+  occupation = 1 + 2*ability + 0*female - 2*discrimination + rnorm(10000),
+  wage = 1 - 1*discrimination + 1*occupation + 2*ability + rnorm(10000) 
+)
+
+lm_1 <- lm(wage ~ female, tb)
+lm_2 <- lm(wage ~ female + occupation, tb)
+lm_3 <- lm(wage ~ female + occupation + ability, tb)
+
+export_summs(lm_1,lm_2,lm_3, model.names= c("Biased Unconditional", 
+                                            "Biased",
+                                            "Unbiased Conditional"))
+```
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-7.html", output = "Tutorial-7.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
