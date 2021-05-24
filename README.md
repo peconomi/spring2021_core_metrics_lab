@@ -100,6 +100,16 @@ Regressions and Standard Errors
 
 ## Week 7
 
+DAGs
+
+1. Brief Recap
+1. Simple DAG using `ggplot2`
+1. Chain Effects
+1. Collider Bias Example
+
+**Content:** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/9c5644323ff2bd6afbd7e784f3db22c2991b0fc5/Week_7/Tutorial-7.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_7/Tutorial-7.Rmd) 
+
 ## Week 8
 
 ## Week 9
