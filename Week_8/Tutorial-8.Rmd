@@ -1,0 +1,588 @@
+---
+title: "Missing Data"
+subtitle: "EC 607 Metrics, Tutorial 8"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,scales,ggdag,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+
+
+## Today
+
+- Missing Data (theory)
+
+- Missing Data (application)
+
+- Missing Data (reweighting for MCAR)
+
+
+---
+
+layout: true
+
+# Missing Data
+---
+
+## Terminology
+
+.hi-slate[Imputation] is the process of estimating or predicting the missing observations. Rubin (1976) coins most of the terminology and formal definitions used in imputation literature..super[.pink[†]] Missing at random (MAR) and missing completely at random (MCAR). 
+
+.hi-slate[Rubin Setup:]
+
+**Y**: $N \times p$ complete data set comprised of $Y_{obs}$ and $Y_{mis}$. <br>**R**: $N \times p$ matrix of indicators, 1 for observed element of **Y**. <br>**Regression:** $Y$ contains dependent variable $y$ and remainder of dataframe is $X$, with $(p-1)$ regressors included.  
+
+
+.footnote[.pink[†] Rubin, D., (1976). *'Inference and Missing Data'*, Biometrika, Vol. 63(3), pp. 581-592.]
+
+---
+
+## Terminology
+
+Probability that $x_{ki}$ , the $i$th observation on variable $x_k$ , is missing may be:
+
+(i) independent of its realized value,<br> 
+(ii) dependent on its realized value,<br> 
+(iii) dependent on $x_{kj}$ , $j \neq i$, or<br>
+(iv) dependent on $x_{lj}$ , $j \neq i$, $l \neq k$.
+
+We'd consider (i) to satisfy being missing at random, (iii) and (iv) to satisfy being missing conditionally at random. (ii) satisfies neither MAR or MCAR. 
+
+---
+
+## Ignorable and Nonignorable
+
+.hi-slate[Ignorable] if dataset is MCAR and the parameters for the missing data-generating process are unrelated to the parameters $\theta$ that we want to estimate. 
+
+.hi-slate[Non-ignorable] if MCAR is violated for $(y,x)$. Consistency and efficiency problems. Dgp for missing data must be modeled along with the overall model to obtain consistent estimates of parameters $\theta$. 
+
+
+
+
+---
+
+## Handling without Models
+
+.hi-slate[Listwise deletion] or .hi-slate[complete case analysis:]  exclusion of the observations (cases) that have missing values on one or more of the variables in the data set. 
+
+Under MAR, the remaining sample after listwise deletion remains a random sample from original population; therefore the estimates based on it are consistent. Only results in effiency loss. 
+
+Under MCAR, not a problem if its only the $x$ terms that are not of interest but still experience efficiency loss and now the ${\hat \beta}$ terms are possibly biased. 
+
+---
+
+## Handling without Models
+
+.hi-slate[Mean imputation:] Replace missing observations with the average of available values. If looking at treated and control groups, prepare averages by group for each variable.  
+
+Preserves the mean but will impact marginal distribution of data. Think of the probability mass of your data if suddenly 30 \% of observations take on the mean value. 
+
+This will have knock on effects for covariances and correlations with other variables that will need to be kept in mind. 
+
+
+---
+
+## Handling without Models
+
+.hi-slate[Simple hot deck imputation:] Preserve the distribution **and** mean by replace any missing values with randomly drawn values from available observed values of variable. 
+
+Preserves marginal distribution but distorts covariances and correlations between variables too. While the simplicity of imputation without modelling is attractive, be aware of the downsides. 
+
+---
+
+## Handling without Models
+
+.hi-slate[Davis & Heller (2019)] handles missing data both with and without modeling approaches..super[.pink[†]] For school outcomes, multiple reasons why youth might not appear in the data. 
+
+* First, 21% of sample already graduated from CPS prior to the program’s start, could not have additional post-program high school outcomes. 
+
+* Second, some youth attend private or non-Chicago public schools, which are not part of CPS records. 
+
+* Third, some students who could be attending CPS may choose not to do so (i.e., are long-term truants or have dropped out).
+
+.footnote[.pink[†] Davis, J., & S.B., Heller, (2019). *'Rethinking the Benefits of Youth Employment Programs: The Heterogeneous Effects of Summer Jobs'*, the Review of Economics and Statistics, Vol.102(4), p.664-677.]
+
+---
+
+##  Chicago Public Schools Youth Emp. Programs
+
+* Excludes any youth who graduated from CPS prior to the program start, tests different approaches to missing GPA data for two different populations.
+
+* Population 1: Estimates for youth who attended at least one day of school.
+
+* Population 2: Estimates for all youth with a CPS record.
+
+* How sensitive are GPA outcomes to how we handle missing data for youth who have CPS records? Regardless of how they impute missing GPA values, finds that the program did not have a significant impact on GPAs in the first post-program school year.
+
+---
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res1.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Column 1 imputes the treatment or control means of GPA, calculated within randomization blocks, to *all* missing data.
+
+The approach assumes that data are missing completely at random (uncorrelated with observable or unobservable characteristics) after conditioning on randomization block.
+
+---
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res2.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Column 2 imputes same block mean when the student attended at least 70 days of school (i.e., assumes youth should have attended enough to have grades, so are more likely to have missing data due to school reporting).
+
+Imputes zero otherwise (i.e., assumes that youth actually did not attend school and so failed to earn credits). 
+
+---
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res3.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Column 3 imputes block means for charter school students (charters rarely report grades) but leaves other missing observations as missing.
+
+---
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res4.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Column 4 imputes block means for charter school students and zero otherwise. 
+
+---
+
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res5.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Column 5 imputes block means for charter school students and students who attended at least 70 days of school and zero otherwise.
+
+---
+
+
+```{r,  out.width = "90%", echo=FALSE}
+p_load(png)
+img1_path <- "Res6.png"
+img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+include_graphics(img1_path)
+```
+
+Col 6 uses multiple imputation, takes a Bayesian approach to imputation.
+
+Regress outcome variable on baseline covariates, block indicators, and the non-missing outcomes for observations with non-missing data.
+
+Resulting parameters used to predict the missing values of the outcome variable, creating an initial imputed dataset. Restimated and update the formerly missing values. Rinse and repeat 20 times. 
+
+---
+
+layout: true
+
+# Reweighting 
+---
+
+```{r rerun, include=FALSE}
+
+library(pacman)
+p_load(readr,dplyr,stargazer,sandwich)
+paces<-read_csv("abk2006.csv",
+                 col_types = cols())
+
+dim(paces)
+
+names(paces)
+
+# Tell R I'm only talking about paces
+attach(paces) 
+
+# Create non-missing version of age
+paces$age_clean <- paces$age
+
+# Indicator for missing age
+paces$age_ms <- 0
+ paces$age_ms[is.na(paces$age)]<-1
+ paces$age_ms[paces$age==82]<-1
+ 
+ # Impute with group mean if missing
+ paces$age_clean[paces$age_ms==1 & vouch0==1]<- mean(paces$age[paces$age_ms!=1 & paces$vouch0==1])
+ 
+ paces$age_clean[paces$age_ms==1 & vouch0==0]<- mean(paces$age[paces$age_ms!=1 & paces$vouch0==0])
+ 
+ 
+
+```
+
+Recall missing outcomes are potentially more serious unless MAR satisfied where; 
+
+$$E[Y_{1i}|R_{1,i}=1] = E[Y_{1i}|R_{1,i}=0]$$
+
+$$E[Y_{0i}|R_{0,i}=1] = E[Y_{0i}|R_{0,i}=0]$$
+
+When outcome data is missing at random then:
+
+$$E[Y_{1i}|R_{1i}=1]=E[Y_{1i}]$$
+
+$$E[Y_{0i}|R_i=1]=E[Y_{0i}]$$
+
+---
+
+```{r warning=FALSE, include=FALSE, results='asis'}
+
+mar0<-lm(read~vouch0, data=paces[paces$read>0,])
+  mar0_se <- sqrt(diag(vcovHC(mar0,type="HC1")))
+mar1<-lm(read~vouch0+age_clean+age_ms+phone+sex_name, data=paces[paces$read>0,])
+    mar1_se <- sqrt(diag(vcovHC(mar1,type="HC1")))
+stargazer(mar0,mar1, 
+          se = list(mar0_se,mar1_se),
+          keep=c("vouch0"), keep.stat="n",
+          type='html')
+
+```
+
+<table style="text-align:center"><tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td colspan="2"><em>Dependent variable:</em></td></tr>
+<tr><td></td><td colspan="2" style="border-bottom: 1px solid black"></td></tr>
+<tr><td style="text-align:left"></td><td colspan="2">read</td></tr>
+<tr><td style="text-align:left"></td><td>(1)</td><td>(2)</td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">vouch0</td><td>0.683<sup>**</sup></td><td>0.705<sup>**</sup></td></tr>
+<tr><td style="text-align:left"></td><td>(0.330)</td><td>(0.327)</td></tr>
+<tr><td style="text-align:left"></td><td></td><td></td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>1,223</td><td>1,223</td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"><em>Note:</em></td><td colspan="2" style="text-align:right"><sup>*</sup>p<0.1; <sup>**</sup>p<0.05; <sup>***</sup>p<0.01</td></tr>
+</table>
+
+Assuming that our test scores are representative of the overall population, then straightforward regression gives us our estimate. 
+
+---
+
+
+<br>
+
+MCAR - samples are not representative of eachother, perhaps different demographic compositions, but if we control for these differences and look within groups, the subsamples are representative of eachother. 
+
+$$E[Y_i|R_i=1,T_i=1] \neq E[Y_i|T_i=1]$$
+
+But:
+
+$$E[Y_i|R_i=1,T_i=1,X_i=x]=E[Y_i|T_i=1,X_i=x]$$
+
+Once you account for covariates you're adjusting for your bias!
+
+---
+
+<br>
+
+When data is missing conditionally at random, we can re-weight observed data to match distribution of Xs in full sample 
+  
+  + e.g. including observations with missing outcomes
+
+
+We use a trick based on the following observation:
+
+$$N = \frac{N_{\text{observed}}}{P(\text{observed})}$$
+
+The full sample size is the observed sample size divided by the probability that it is observed. 
+
+---
+
+
+Consider the following example:
+
+- We just want to estimate $\bar{Y}$ in the full dataset.
+- For all men $Y=5$ and for all women  $Y=10$.
+- The full data consists of 5 men and 5 women.
+- But the outcome is missing for 2 men, we only see outcome for 3.
+
+In the subsample with non-missing data:
+
+$$P(Male|R_i=1)=\frac{3}{8}=0.375$$
+$$\bar{Y}_{obs}=\frac{1}{8}(3*5+5*10)=8.125\\
+\bar{Y} = \frac{1}{10}(5*5+5*5) = 7.5$$
+
+---
+
+<br>
+
+If we re-weight the data so $w=\frac{1}{P(\text{observed}|X)}$ then each man is counted $\frac{5}{3}=1.667$  times and each woman is counted $\frac{1}{1}=1$ times.
+
+In the re-weighted sample, we replace our N values with $\frac{N_{\text{observed}}}{P(\text{observed})}$:
+
+$$\bar{Y} = \frac{1}{3*w_m+5*w_f}*(3*w_m*5+5*w_f*10)$$
+$$= \frac{1}{10}*(5*5+5*10)= 7.5$$
+
+---
+
+<br>
+
+## Estimating P(Missing|X)
+
+Can estimate probability missing a few ways:
+
+1. Non-parametrically, e.g. using $E[Observed|X]$ like we did with gender 
+
+2. Using linear regression, by regressing an indicator for observing outcome on X.
+
+3. Using a logistic regression of indicator for observing outcome on X.
+
+
+---
+
+## Predicting Missingness
+
+```{r Reweighting}
+
+paces$read_ms <- 1*(paces$read==0)
+paces$read_ms[is.na(paces$read_ms)==1] <- 1
+
+paces$read_obs<- 1-paces$read_ms
+
+control<-lm(read_obs~age_clean+age_ms+sex_name+phone,
+             data=paces[vouch0==0,])
+
+treat<-lm(read_obs~age_clean+age_ms+sex_name+phone,
+           data=paces[vouch0==1,])
+
+p_obs <- vector(length=length(paces$read))
+p_obs[vouch0==1]<-treat$fitted
+p_obs[vouch0==0]<-control$fitted
+# Set our weights as the inverse of observed probabilities
+wt<-1/p_obs
+```
+
+
+---
+
+## Treatment Effects
+
+```{r}
+
+# Unweighted Regression
+unwt<-lm(read~vouch0+age_clean+sex_name+phone,
+                data=paces[paces$read_obs==1,])
+
+# Weighted Regression
+wt<-lm(read~vouch0+age_clean+sex_name+phone,
+              weight=wt[paces$read_obs==1], data=paces[paces$read_obs==1,])
+
+# Standard Errors
+ unwt_se <- sqrt(diag(vcovHC(unwt,type='HC1')))
+   wt_se <- sqrt(diag(vcovHC(wt,type='HC1')))
+   
+```
+
+---
+
+## Treatment Effects
+
+```{r eval=FALSE, warning=FALSE, include=TRUE, results='asis'}
+stargazer(unwt,wt,se=list(unwt_se,wt_se),
+          keep=c("vouch0"),keep.stat="n",
+          type='html')
+```
+
+<table style="text-align:center"><tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td colspan="2"><em>read</em></td></tr>
+<tr><td></td><td colspan="2" style="border-bottom: 1px solid black"></td></tr>
+<tr><td style="text-align:left"></td><td>(1)</td><td>(2)</td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">vouch0</td><td>0.705<sup>**</sup></td><td>0.662<sup>**</sup></td></tr>
+<tr><td style="text-align:left"></td><td>(0.327)</td><td>(0.332)</td></tr>
+<tr><td style="text-align:left"></td><td></td><td></td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>1,223</td><td>1,223</td></tr>
+<tr><td colspan="3" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"><em>Note:</em></td><td colspan="2" style="text-align:right"><sup>*</sup>p<0.1; <sup>**</sup>p<0.05; <sup>***</sup>p<0.01</td></tr>
+</table>
+
+
+---
+
+## Bounding the Treatment Effect
+
+So far, we've seen how to make progress if we are willing to assume outcomes are:
+
+--
+
+.hi-pink[missing at random] (Don't need to do anything!)
+
+--
+
+.hi-pink[missing conditionally at random] (Re-weight the data)
+
+--
+
+If we aren't willing to make one of these assumptions, we can **bound** the average treatment effect.
+
+--
+
+**Idea**: Assume extreme cases for treatment and control groups.
+
+---
+
+## Bounds Example
+
+
+Outcomes range from 0 to 10.
+
+
+Treatment Group Observations: 7, 10, 6, and 6
+
++ Imagine we don't observe 6 and 6.
+
+Control Group Observations: 3, 7, 5, and 6
+
++ Imagine we don't observe the 3.
+
+
+$$\bar{Y}_1 = \frac{7+10+?+?}{4}$$
+
+$$\bar{Y}_0 = \frac{?+7+5+6}{4}$$
+
+---
+
+## Upper Bound
+
+The treatment effect is given by:
+
+$$\hat{\beta} = \bar{Y}_1-\bar{Y}_0$$
+
+Will be biggest if missing data is big in treatment group and small in control group:
+
+$$\bar{Y}_1 = \frac{7+10+10+10}{4}=\frac{37}{4}$$
+
+$$\bar{Y}_0 = \frac{0+7+5+6}{4}=\frac{18}{4}$$
+
+$$\text{Upper Bound} = \frac{37}{4}-\frac{18}{4}= \frac{19}{4}$$
+
+---
+
+## Lower Bound
+
+The treatment effect is given by:
+
+$$\hat{\beta} = \bar{Y}_1-\bar{Y}_0$$
+
+Will be smallest if missing data is small in treatment group and big in control group:
+
+$$\bar{Y}_1 = \frac{7+10+0+0}{4}=\frac{17}{4}$$
+
+$$\bar{Y}_0 = \frac{10+7+5+6}{4}=\frac{28}{4}$$
+
+$$\text{Lower Bound} = \frac{17}{4}-\frac{28}{4}= -\frac{11}{4}$$
+
+---
+
+## Treatment Status
+
+We've considered missing covariates ( $X$ ) and missing observations ( $Y$ ).
+
+What about missing treatment ( $T$ )?
+
+--
+
+This is bad news. 
+
+Treatment should never be missing since it is generated by researcher!
+
+If missing for some randomization blocks, may want to discard those blocks at risk of limiting generalizability. 
+
+
+
+---
+
+## Missing Data Recap
+
+Missing data is another problem that will inevitably arise.
+
+Usually not a big deal if missing covariates. 
+  
+  + Generate an indicator and __impute__ missing values with 0 or average value.
+
+Missing outcomes can be more serious. 
+
++ Check if there is a treatment effect on missingness.
++ If not, might be reasonable to assume missing at random.
++ If yes, can assume missing conditionally at random and re-weight data by inverse probability data is observed.
++ Assumption free approach is to generate bounds on effects. But usually very wide.
+
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-8.html", output = "Tutorial-8.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
