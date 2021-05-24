@@ -112,6 +112,15 @@ DAGs
 
 ## Week 8
 
+Missing Data
+
+1. Theory
+1. Application
+1. Reweighting
+
+**Content** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/90fbd81afdf703aa595b4ee435ab00aaa9537ca4/Week_8/Tutorial-8.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_8/Tutorial-8.Rmd)
+
 ## Week 9
 
 ## Week 10
