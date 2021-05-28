@@ -1,0 +1,516 @@
+---
+title: "Regression Discontinuity"
+subtitle: "EC 607 Metrics, Tutorial 9"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,scales,ggdag,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+
+
+## Today
+
+- Packages
+
+- Examples
+
+- Drunk Driving
+
+
+---
+
+layout: true
+
+# Packages
+
+---
+
+We'll work through a walkthrough by [Andrew Heiss](https://evalf20.classes.andrewheiss.com/example/rdd/)
+
+```{r}
+p_load(rdrobust,rddensity,modelsummary, data.table)
+```
+
+`rdrobust` package employs local polynomial and partitioning methods. Provides point estimators, confidence intervals estimators, bandwidth selectors, automatic RD plots, and many other features.
+
+As of Winter 2020:
+
+--
+
+* Discrete running variable checks and adjustments
+
+--
+
+* Bandwidth selection adjustments for too few mass points in and/or overshooting of the support of the running variable
+
+
+--
+
+* RD Plots with additional covariates plotted at their mean
+
+---
+
+<br>
+
+`rdrobust::rdbwselect()`: <br>implements bandwidth selectors for local polynomial Regression Discontinuity (RD) point estimators and inference procedures developed in Calonico, Cattaneo and Titiunik (2014).
+
+rdbwselect(dep_var, run_var, rd_cutoff)
+
+--
+
+Additionally;
+
+p: order of the local-polynomial for point-est construction.<br>
+kernel: triangular (default), epanechnikov, uniform.<br>
+bwselect: bandwidth selection procedure ([see choices](https://cran.r-project.org/web/packages/rdrobust/rdrobust.pdf))
+
+---
+
+`rddensity::rddensity(run_var, c = cutoff)`<br>
+implements manipulation testing procedures using the local polynomial density estimators proposed in Cattaneo, Jansson and Ma (2020), and implements graphical procedures with valid confidence bands using the results in Cattaneo, Jansson and Ma (2021).
+
+--
+
+`rddensity::rdplotdensity(rdd, X, type, histBreaks)`<br>
+constructs density plots. It is based on the local polynomial density estimator proposed in Cattaneo, Jansson and Ma (2020, 2021). A companion Stata package is described in Cattaneo, Jansson and Ma (2018).
+
+rdd: `rddensity` object<br>
+X: running variable<br>
+type: how point estimates plotted ("line", "points", "both")<br>
+histBreaks: giving the breakpoints between histogram cells
+
+---
+
+layout: true
+
+# Examples
+
+---
+
+Dataframe describes student outcomes, where students who score higher than 70 are not eligible for a tutoring program.
+
+How do we gauge slip-through?
+
+```{r echo=FALSE, fig.height=4}
+tutoring <- fread("tutoring_program.csv")
+
+ggplot(tutoring, aes(x = entrance_exam, y = tutoring, color = tutoring)) +
+  geom_point(size = 1, alpha = 0.5, 
+             position = position_jitter(width = 0, height = .3, seed = 1234)) + 
+  geom_vline(xintercept = 70) + 
+  labs(x = "Entrance exam score", y = "Participated in tutoring program") + 
+  guides(color = FALSE) + theme_bw()
+
+```
+
+---
+
+<br>
+
+Is there discontinuity in running variable around cutpoint? We can check to see if that jump is statistically significant with a [McCrary density test](https://mixtape.scunning.com/regression-discontinuity.html#mccrarys-density-test).
+
+--
+
+```{r}
+test_density <- rddensity(tutoring$entrance_exam, c = 70)
+# To see proper set of results 
+#summary(test_density)
+test_density[["test"]][["p_jk"]]
+```
+
+--
+
+The p-value for the size of that overlap is 0.5809, which is a lot larger than 0.05, so we don’t have good evidence that there’s a significant difference between the two lines.
+
+---
+
+```{r, fig.height=6}
+plot_density_test <- rdplotdensity(rdd = test_density,type = "both", 
+                                   X = tutoring$entrance_exam)
+```
+
+---
+
+```{r}
+tutoring_centered <- tutoring %>% 
+  mutate(entrance_centered = entrance_exam - 70)
+lm(exit_exam ~ entrance_centered + tutoring,
+                   data = tutoring_centered) %>% huxreg()
+```
+
+Participating in the tutoring program increases exit exam scores by 10.8 points
+
+---
+
+```{r}
+lm(exit_exam ~ entrance_centered + tutoring,
+  data = filter(tutoring_centered,
+      entrance_centered >= -5 &  entrance_centered <= 5)) %>% huxreg()
+```
+
+---
+
+```{r include=FALSE}
+model_simple <- lm(exit_exam ~ entrance_centered + tutoring,
+                   data = tutoring_centered)
+
+model_bw_10 <- lm(exit_exam ~ entrance_centered + tutoring,
+                  data = filter(tutoring_centered,
+                                entrance_centered >= -10 & 
+                                  entrance_centered <= 10))
+
+model_bw_5 <- lm(exit_exam ~ entrance_centered + tutoring,
+                  data = filter(tutoring_centered,
+                                entrance_centered >= -5 & 
+                                  entrance_centered <= 5))
+```
+
+
+```{r echo=FALSE}
+modelsummary(list("Full data" = model_simple, 
+                  "Bandwidth = 10" = model_bw_10, 
+                  "Bandwidth = 5" = model_bw_5))
+```
+
+---
+
+```{r message=FALSE, warning=FALSE, fig.height=5}
+rdplot(y = tutoring$exit_exam, x = tutoring$entrance_exam, c = 70)
+```
+
+
+---
+
+layout: true
+
+# Drunk Driving
+
+---
+
+Replicating .hi-slate[Hansen (2015)] Punishment and Deterrence: Evidence from Drunk Driving, AER
+
+```{r}
+# Load blood alcohol content data
+rd_df <- fread("bac.csv")
+
+glimpse(rd_df) 
+```
+
+---
+
+<br>
+
+.hi-slate[Background: ]
+
+* Exploits discrete thresholds that determine both the current as well as potential future punishments for drunk drivers. 
+
+* Specifically, in WA BAC measured above 0.08 is considered a DUI 
+
+* BAC above 0.15 is considered an aggravated DUI, or a DUI that results in higher fines, increased jail time, and a longer license
+suspension period.
+
+--
+
+* Do individuals essentially just as drunk on either side of the threshold exhibit differences in recidivism rates?
+
+---
+
+Is there any sorting at these thresholds? Histogram:
+
+```{r echo=FALSE, fig.height=6}
+minors<-seq(500,2000,by=500)
+
+ggplot(rd_df)+
+  geom_hline(mapping=NULL, yintercept=minors,colour='grey80')+
+  geom_histogram(aes(x=bac), bins=436, fill="#8b8b8b")+
+  xlab("BAC")+
+  ylab("Frequency")+
+  geom_vline(xintercept=0.08, linetype="longdash")+
+  geom_vline(xintercept=0.15, linetype="longdash")+
+  geom_hline(yintercept=0.00)+
+  scale_y_continuous(expand = c(0,0), limits = c(0, 2000),labels = comma_format())+
+  theme_classic()+ theme(axis.text.x=element_text(colour="black"),
+                         axis.text.y=element_text(colour="black"))
+```
+
+---
+
+### Is there evidence of sorting?
+
+```{r echo=FALSE, fig.height=6}
+res_08 = rddensity(rd_df$bac, 0.08)
+plot_dens_t08 <- rdplotdensity(rdd = res_08, 
+                                X = rd_df$bac, 
+                                type = "both",
+      histBreaks = c(seq(0.00, 0.14965, by=0.00205)))
+```
+
+---
+
+### Regression discontinuity model
+
+```{r eval=FALSE, include=TRUE}
+# Create a dummy variable for a BAC over .08.
+rd_dfc <- rd_df %>% mutate(over08 = ifelse(bac >= 0.08, 1, 0),
+                           resbac = bac - 0.08) %>%
+          filter(bac <= 0.13 & bac >= 0.03)
+
+smooth_age = lm_robust(data=rd_dfc, aged  ~ over08 + resbac + over08:resbac) 
+smooth_gen = lm_robust(data=rd_dfc, male  ~ over08 + resbac + over08:resbac)
+smooth_acc = lm_robust(data=rd_dfc, acc   ~ over08 + resbac + over08:resbac)
+smooth_rac = lm_robust(data=rd_dfc, white ~ over08 + resbac + over08:resbac)
+
+export_summs(smooth_age, smooth_gen, smooth_acc, smooth_rac, 
+             model.names=c("Age", "Male", "Accident","White"),
+            statistics = c(N = 'nobs'))
+```
+
+---
+
+### Regression discontinuity model
+
+```{r echo=FALSE}
+# Create a dummy variable for a BAC over .08.
+rd_dfc <- rd_df %>% mutate(over08 = ifelse(bac >= 0.08, 1, 0),
+                           resbac = bac - 0.08) %>%
+          filter(bac <= 0.13 & bac >= 0.03)
+
+smooth_age = lm_robust(data=rd_dfc, aged  ~ over08 + resbac + over08:resbac) 
+smooth_gen = lm_robust(data=rd_dfc, male  ~ over08 + resbac + over08:resbac)
+smooth_acc = lm_robust(data=rd_dfc, acc   ~ over08 + resbac + over08:resbac)
+smooth_rac = lm_robust(data=rd_dfc, white ~ over08 + resbac + over08:resbac)
+
+export_summs(smooth_age, smooth_gen, smooth_acc, smooth_rac, 
+             model.names=c("Age", "Male", "Accident","White"),
+            statistics = c(N = 'nobs'))
+```
+
+---
+
+```{r}
+lm_robust(data=rd_dfc, 
+     recidivism   ~ over08 + resbac + over08:resbac)%>% huxreg()
+```
+
+---
+
+```{r echo=FALSE, message=FALSE}
+# Create a visualization of this by graphing the mean recidivism rate against the running variable.
+# Show this for the whole BAC distribution, and the range from .03 to .13. Please include a fitted line
+
+#(i)
+#Separate BAC into bins. 
+bin_range = seq(0,0.4,by=0.01)
+bac_x = c()
+rec_y = c()
+
+for(i in 1:(length(bin_range)-1)){
+  df_bin <- rd_df %>% 
+    filter(bac >= bin_range[i] & bac <= bin_range[i+1])
+  
+  rec_y[i] = mean(df_bin$recidivism)
+  bac_x[i] = (bin_range[i] + bin_range[i+1])/2
+}
+
+# Bind these two vectors into a dataframe to map
+avg_recid = bind_cols(bac_x,rec_y) %>% rename(bac_x = ...1, rec_y=...2)
+avg_recid_cond = avg_recid[26:40,]
+# List of results
+high_bac = list()
+
+for(j in 1:5){
+  #avg_recid[26:40,]
+ df_loop = avg_recid[(26+(3*(j-1))):(28+(3*(j-1))), ]
+high_bac[[j]] = df_loop %>% summarize(bac_x=mean(bac_x), 
+                        rec_y=mean(rec_y))
+ 
+}
+
+avg_recid_adj = bind_rows(avg_recid[1:25,],bind_rows(high_bac))
+
+# Prepare horizontal greylines
+minors<-seq(0.075,0.2,by=0.025)
+
+
+p = ggplot(rd_df, aes(x = bac, y = recidivism)) +
+  geom_vline(xintercept=c(0.08, 0.15), linetype = "longdash", alpha=0.8)+
+  geom_hline(mapping=NULL, yintercept=minors,colour='grey80')+
+  geom_point(data=avg_recid_adj, aes(x= bac_x, y=rec_y), size=1, fill="white")+
+  # Add lines for the full model at 0.08 (model_simple)
+  geom_smooth(data = filter(rd_df, bac <= 0.08), 
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.08), 
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  # Add lines for bandwidth (first and second)
+  geom_smooth(data = filter(rd_df, bac <= 0.08, bac >= 0.03), 
+              method = "lm", se = FALSE, size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.08, bac <= 0.15), 
+              method = "lm", se = FALSE, size = 1) +
+  
+  # Add lines for the full model at 0.15 (model_simple)
+  geom_smooth(data = filter(rd_df, bac <= 0.15), color="red",
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.15), color="red",
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  # Add lines for bandwidth (third)
+  geom_smooth(data = filter(rd_df, bac > 0.15, bac <= 0.2), 
+              method = "lm", se = FALSE, size = 1) +
+  # Zoom in
+  coord_cartesian(xlim = c(0.00, 0.25), ylim = c(0.08, 0.20)) +
+  labs(x = "Blood Alcohol Content", y = "Recidivism")+
+  theme_classic()+ theme(axis.text.x=element_text(colour="black"),
+                         axis.text.y=element_text(colour="black"))
+p
+```
+
+---
+
+<br>
+
+Lets walk through the code for this. Can adjust for multiple RD's, adjust the smoothing function using `geom_smooth` in future use. 
+
+```{r}
+bin_range = seq(0,0.4,by=0.01)
+bac_x = c()
+rec_y = c()
+
+for(i in 1:(length(bin_range)-1)){
+  df_bin <- rd_df %>% 
+    filter(bac >= bin_range[i] & bac <= bin_range[i+1])
+  
+  rec_y[i] = mean(df_bin$recidivism)
+  bac_x[i] = (bin_range[i] + bin_range[i+1])/2
+}
+```
+
+---
+
+<br>
+
+```{r}
+# Bind these two vectors into a dataframe to map
+avg_recid = bind_cols(bac_x,rec_y) %>% rename(bac_x = ...1, rec_y=...2)
+avg_recid_cond = avg_recid[26:40,]
+# List of results
+high_bac = list()
+
+for(j in 1:5){
+  #avg_recid[26:40,]
+ df_loop = avg_recid[(26+(3*(j-1))):(28+(3*(j-1))), ]
+high_bac[[j]] = df_loop %>% summarize(bac_x=mean(bac_x), 
+                        rec_y=mean(rec_y))
+ 
+}
+
+avg_recid_adj = bind_rows(avg_recid[1:25,],bind_rows(high_bac))
+```
+
+---
+
+```{r, evaluate=FALSE}
+# Prepare horizontal greylines
+minors<-seq(0.075,0.2,by=0.025)
+p = ggplot(rd_df, aes(x = bac, y = recidivism)) +
+  geom_vline(xintercept=c(0.08, 0.15), linetype = "longdash", alpha=0.8)+
+  geom_hline(mapping=NULL, yintercept=minors,colour='grey80')+
+  geom_point(data=avg_recid_adj, aes(x= bac_x, y=rec_y), size=1, fill="white")+
+  # Add lines for the full model at 0.08 (model_simple)
+  geom_smooth(data = filter(rd_df, bac <= 0.08), 
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.08), 
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  # Add lines for bandwidth (first and second)
+  geom_smooth(data = filter(rd_df, bac <= 0.08, bac >= 0.03), 
+              method = "lm", se = FALSE, size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.08, bac <= 0.15), 
+              method = "lm", se = FALSE, size = 1) +
+  # Add lines for the full model at 0.15 (model_simple)
+  geom_smooth(data = filter(rd_df, bac <= 0.15), color="red",
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  geom_smooth(data = filter(rd_df, bac > 0.15), color="red",
+              method = "lm", se = FALSE, linetype = "dotted", size = 1) +
+  # Add lines for bandwidth (third)
+  geom_smooth(data = filter(rd_df, bac > 0.15, bac <= 0.2), 
+              method = "lm", se = FALSE, size = 1) +
+  # Zoom in
+  coord_cartesian(xlim = c(0.00, 0.25), ylim = c(0.08, 0.20)) +
+  labs(x = "Blood Alcohol Content", y = "Recidivism")+
+  theme_classic()+ theme(axis.text.x=element_text(colour="black"),
+                         axis.text.y=element_text(colour="black"))
+p
+```
+
+---
+
+Underlying resource that I've tuned up for plotting: [Heiss' plots in section 5](https://evalf20.classes.andrewheiss.com/example/rdd/#step-5-measure-the-size-of-the-effect)
+
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-9.html", output = "Tutorial-9.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```
