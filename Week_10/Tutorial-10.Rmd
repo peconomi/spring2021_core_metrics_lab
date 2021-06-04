@@ -1,0 +1,395 @@
+---
+title: "Bootstrapping"
+subtitle: "EC 607 Metrics, Tutorial 10"
+author: "Philip Economides"
+date: "Spring 2021"
+output:
+  xaringan::moon_reader:
+    css: ['default', 'metropolis', 'metropolis-fonts', 'my-css.css']
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+class: middle
+
+```{R setup, include = F}
+# devtools::install_github("dill/emoGG")
+library(pacman)
+p_load(
+  broom, tidyverse, pracma, tstools,
+  latex2exp, ggplot2, ggthemes, ggforce, viridis, extrafont, gridExtra,
+  kableExtra, snakecase, janitor,
+  data.table, dplyr, estimatr,
+  lubridate, knitr, parallel,
+  lfe,scales,ggdag,
+  here, magrittr, kableExtra, snakecase, janitor, lubridate,
+  data.table, knitr, jtools, huxtable, estimatr, haven, ipumsr
+)
+# Define pink color
+red_pink <- "#e64173"
+turquoise <- "#20B2AA"
+orange <- "#FFA500"
+red <- "#fb6107"
+blue <- "#2b59c3"
+green <- "#8bb174"
+grey_light <- "grey70"
+grey_mid <- "grey50"
+grey_dark <- "grey20"
+purple <- "#6A5ACD"
+slate <- "#314f4f"
+# Dark slate grey: #314f4f
+# Knitr options
+opts_chunk$set(
+  comment = "#>",
+  fig.align = "center",
+  fig.height = 7,
+  fig.width = 10.5,
+  warning = F,
+  message = F
+)
+opts_chunk$set(dev = "svg")
+options(device = function(file, width, height) {
+  svg(tempfile(), width = width, height = height)
+})
+options(crayon.enabled = F)
+options(knitr.table.format = "html")
+```
+
+```{css, echo = F, eval = F}
+@media print {
+  .has-continuation {
+    display: block !important;
+  }
+}
+```
+
+
+
+## Today
+
+- Recap
+
+- `boot`package
+
+- Multiple Statistics
+
+- Parametric Bootstrap
+
+- Looking Forward
+
+---
+
+layout: true
+
+# Recap
+
+---
+
+
+.hi-pink[Bootstrapping] is a resampling method, where we draw samples from our dataset $Z$ and refit our model of interest in order to study the behaviour of key statistics across a large number of iterations.
+
+--
+
+Like conventional methods, however, bootstrap methods rely on asymptotic theory and are only exact in infinitely large samples.
+
+--
+
+.hi-pink[When and Why do we Bootstrap?]
+
+--
+
+Generally suited to cases where 
+
+--
+
+1. Distribution of a statistic is unknown, perhaps due to low sample size.
+
+--
+
+1. When the sample size is too small to draw a valid inference.
+
+--
+
+1. We are approaching a research idea and wish to approximate the distribution. 
+
+
+---
+
+layout: true
+
+# boot package
+
+---
+
+<br>
+
+`boot`provides extensive facilities for bootstrapping and related resampling methods. You can bootstrap a single statistic (e.g. a median), or a vector (e.g., regression weights). 
+
+--
+
+* `boot()` generates bootstrap replicates of a statistic applied to data. 
+
+---
+
+```{r, eval=FALSE}
+boot(data, statistic, R, sim = "ordinary", stype = c("i", "f", "w"),
+strata = rep(1,n), L = NULL, m = 0, weights = NULL,
+ran.gen = function(d, p) d, mle = NULL, simple = FALSE, ...,
+parallel = c("no", "multicore", "snow"),
+ncpus = getOption("boot.ncpus", 1L), cl = NULL)
+```
+
+--
+
+* .hi-slate[statistic:] Usually a prepared function. The function should include an indices parameter that the `boot()` function can use to select cases for each replication.
+
+--
+
+* .hi-slate[R:] Number of replications.
+
+--
+
+* .hi-slate[sim:] Indicating the type of simulation required. Choice of "ordinary" (the default), "parametric", "balanced", "permutation", or "antithetic".
+
+--
+
+* Returns observed value of statistic applied to data.
+
+
+---
+
+<br>
+
+Preparing the function for .hi-slate[statistic].
+
+```{r}
+p_load(boot)
+
+# R-squared for the model, through resampling
+rsq <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(summary(fit)$r.square)
+}
+
+# bootstrapping with 1000 replications
+results <- boot(data=mtcars, statistic=rsq,
+   R=1000, formula=mpg~wt+disp)
+```
+
+---
+
+```{r}
+plot(results)
+```
+
+---
+
+`boot.ci()` will generate a confidence interval for you on your estimate. Five different types of equi-tailed two-sided nonparametric confidence intervals are available.
+
+```{r, eval=FALSE}
+boot.ci(boot.out, conf = 0.95, type = "all",
+index = 1:min(2,length(boot.out$t0)), var.t0 = NULL,
+var.t = NULL, t0 = NULL, t = NULL, L = NULL,
+h = function(t) t, hdot = function(t) rep(1,length(t)),
+hinv = function(t) t, ...)
+```
+
+--
+
+.hi-slate[type:]<br>
+"norm": first order normal approximation<br>
+"basic": basic bootstrap interval<br>
+"stud": studentized bootstrap interval<br>
+"perc": bootstrap percentile interval<br>
+"bca": adjusted bootstrap percentile
+
+
+
+---
+
+<br>
+
+### Using our example:
+
+```{r}
+boot.ci(results, type="bca")
+```
+
+---
+
+layout: true
+
+# Multiplie Statistics
+
+---
+
+<br>
+
+The statistics function you provide can also return a vector. 
+
+```{r}
+
+# Statistic(s)
+bs <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample
+  fit <- lm(formula, data=d)
+  return(coef(fit))
+}
+
+# Boot
+results <- boot(data=mtcars, statistic=bs,
+   R=1000, formula=mpg~wt+disp)
+
+```
+
+
+---
+
+```{r}
+plot(results, index=1) # intercept
+```
+
+---
+
+```{r}
+plot(results, index=2) # wt
+```
+
+---
+
+```{r}
+plot(results, index=3) # disp
+```
+
+---
+
+layout: true
+
+# Parametric Bootstrap
+
+---
+
+```{r}
+# Generate a dataframe, exponential distribution
+y <- data.frame(list(sample = rexp(50)))
+
+# Describes how random values are to be generated.
+# It should be a function of two arguments. 
+# First argument should be the observed data 
+# Second argument consists of any other information needed (e.g. parameter estimates).
+
+expboot <- function(x,B){
+  
+  y <- x
+  y$sample <- rexp(nrow(y), B)
+  y  
+}
+
+bootperc <- function(y, p){
+  quantile(y$sample,p )
+}
+
+b2 <- boot(y, bootperc, R=1000,
+           sim="parametric", ran.gen=expboot,
+           mle = mean(y$sample), p=.95)
+```
+
+---
+
+```{r}
+plot(b2)
+```
+
+---
+
+layout: true
+
+# Recommendations
+
+---
+
+
+<br>
+
+1. Get started on .hi-slate[Github], see Jenny Bryan's [guide](https://happygitwithr.com/). Will be very useful for tracking your own work flow, joint research and keeping up to date with recent developments across various programming languages. 
+
+--
+
+1. Develop your data wrangling and tidying skills. Check out `data.table`, Grant McDermott [introduces](https://raw.githack.com/uo-ec607/lectures/master/05-datatable/05-datatable.html#1). Very fast, no dependencies.
+
+--
+
+1. Beyond R, explore your research interests! Start reading papers, get acquainted with data sources in your prospective field(s).
+
+
+---
+
+### Highlighted Data Sources
+
+--
+
+* .hi-slate[IPUMS:] Publicly available individual level data from US censuses (every 10 years) and American Community Survey (Every year since 2000). Contains demographic and geographic information. Data are standarized and easy to work with. [Website](https://ipums.org/)
+
+--
+
+* .hi-slate[Stanford Open Policing:] Collects and standardizes data on vehicle and pedestrian stops from law enforcement departments across the country. Over 200 million records from dozens of state and local police departments. [Website](https://openpolicing.stanford.edu/data/)
+
+--
+
+* .hi-slate[BigQuery:] As part of the Google Cloud Platform, BigQuery is a fully-managed, serverless data warehouse that enables scalable analysis over petabytes of data. Wrangling big data will require some advanced data-sci skills. [See Grant's material](https://raw.githack.com/uo-ec607/lectures/master/16-databases/16-databases.html). 
+
+
+---
+
+### Efficient Lit Search
+
+--
+
+Log into .hi-pink[Web of Science] through the university's library portal. Very useful search features relative to the library itself, with ranking in order of citations available. Huge time saver. 
+
+--
+
+[Researcher](https://www.researcher-app.com/): A mobile app that works as a direct news feed for new publications. Simply prepare a list of preferred journals and stay informed on how your prospective field is developing. 
+
+--
+
+[Mendeley](https://www.mendeley.com/): Set up an account and immediately start creating libraries of readings through PDF's synced onto a private cloud-platform. Will help you keep track of papers, share material more easily with co-authors and jointly keep track of notes. 
+
+--
+
+For collecting my BibTeX references, I usually refer to [econpapers](https://econpapers.repec.org/). 
+
+
+---
+
+### Dissemination/Branding
+
+--
+
+* Its never too early to make a website, infact the sooner the better. You'll pick up more knowledge as time proceeds and have a banger come final year.
+
+--
+
+* I'd recommend checking out a [wowchemy guide](https://wowchemy.com/docs/getting-started/install/) on this. For a less hands-on approach, google sites if another popular option. 
+
+--
+
+* Be sure to hop on Twitter and keep informed on recent developments in your practice/field. I come across a lot of information on graduate student opportunities and conferences/seminars.
+
+--
+
+* Give me a shout if you have questions on any of these recommendations. 
+
+
+---
+
+exclude: true
+
+```{R generate pdfs, include = F, eval = F}
+#remotes::install_github('rstudio/pagedown')
+library(pagedown)
+pagedown::chrome_print("Tutorial-10.html", output = "Tutorial-10.pdf")
+#pagedown::chrome_print("Tutorial Slides 1-nopause.html", output = "01-research-r-nopause.pdf")
+```

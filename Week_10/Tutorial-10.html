@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Bootstrapping</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Philip Economides" />
+    <script src="Tutorial-10_files/header-attrs-2.6/header-attrs.js"></script>
+    <link href="Tutorial-10_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="Tutorial-10_files/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="Tutorial-10_files/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my-css.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Bootstrapping
+## EC 607 Metrics, Tutorial 10
+### Philip Economides
+### Spring 2021
+
+---
+
+class: middle
+
+
+
+
+
+
+
+## Today
+
+- Recap
+
+- `boot`package
+
+- Multiple Statistics
+
+- Parametric Bootstrap
+
+- Looking Forward
+
+---
+
+layout: true
+
+# Recap
+
+---
+
+
+.hi-pink[Bootstrapping] is a resampling method, where we draw samples from our dataset `\(Z\)` and refit our model of interest in order to study the behaviour of key statistics across a large number of iterations.
+
+--
+
+Like conventional methods, however, bootstrap methods rely on asymptotic theory and are only exact in infinitely large samples.
+
+--
+
+.hi-pink[When and Why do we Bootstrap?]
+
+--
+
+Generally suited to cases where 
+
+--
+
+1. Distribution of a statistic is unknown, perhaps due to low sample size.
+
+--
+
+1. When the sample size is too small to draw a valid inference.
+
+--
+
+1. We are approaching a research idea and wish to approximate the distribution. 
+
+
+---
+
+layout: true
+
+# boot package
+
+---
+
+&lt;br&gt;
+
+`boot`provides extensive facilities for bootstrapping and related resampling methods. You can bootstrap a single statistic (e.g. a median), or a vector (e.g., regression weights). 
+
+--
+
+* `boot()` generates bootstrap replicates of a statistic applied to data. 
+
+---
+
+
+```r
+boot(data, statistic, R, sim = "ordinary", stype = c("i", "f", "w"),
+strata = rep(1,n), L = NULL, m = 0, weights = NULL,
+ran.gen = function(d, p) d, mle = NULL, simple = FALSE, ...,
+parallel = c("no", "multicore", "snow"),
+ncpus = getOption("boot.ncpus", 1L), cl = NULL)
+```
+
+--
+
+* .hi-slate[statistic:] Usually a prepared function. The function should include an indices parameter that the `boot()` function can use to select cases for each replication.
+
+--
+
+* .hi-slate[R:] Number of replications.
+
+--
+
+* .hi-slate[sim:] Indicating the type of simulation required. Choice of "ordinary" (the default), "parametric", "balanced", "permutation", or "antithetic".
+
+--
+
+* Returns observed value of statistic applied to data.
+
+
+---
+
+&lt;br&gt;
+
+Preparing the function for .hi-slate[statistic].
+
+
+```r
+p_load(boot)
+
+# R-squared for the model, through resampling
+rsq &lt;- function(formula, data, indices) {
+  d &lt;- data[indices,] # allows boot to select sample
+  fit &lt;- lm(formula, data=d)
+  return(summary(fit)$r.square)
+}
+
+# bootstrapping with 1000 replications
+results &lt;- boot(data=mtcars, statistic=rsq,
+   R=1000, formula=mpg~wt+disp)
+```
+
+---
+
+
+```r
+plot(results)
+```
+
+&lt;img src="Tutorial-10_files/figure-html/unnamed-chunk-4-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+`boot.ci()` will generate a confidence interval for you on your estimate. Five different types of equi-tailed two-sided nonparametric confidence intervals are available.
+
+
+```r
+boot.ci(boot.out, conf = 0.95, type = "all",
+index = 1:min(2,length(boot.out$t0)), var.t0 = NULL,
+var.t = NULL, t0 = NULL, t = NULL, L = NULL,
+h = function(t) t, hdot = function(t) rep(1,length(t)),
+hinv = function(t) t, ...)
+```
+
+--
+
+.hi-slate[type:]&lt;br&gt;
+"norm": first order normal approximation&lt;br&gt;
+"basic": basic bootstrap interval&lt;br&gt;
+"stud": studentized bootstrap interval&lt;br&gt;
+"perc": bootstrap percentile interval&lt;br&gt;
+"bca": adjusted bootstrap percentile
+
+
+
+---
+
+&lt;br&gt;
+
+### Using our example:
+
+
+```r
+boot.ci(results, type="bca")
+```
+
+```
+#&gt; BOOTSTRAP CONFIDENCE INTERVAL CALCULATIONS
+#&gt; Based on 1000 bootstrap replicates
+#&gt; 
+#&gt; CALL : 
+#&gt; boot.ci(boot.out = results, type = "bca")
+#&gt; 
+#&gt; Intervals : 
+#&gt; Level       BCa          
+#&gt; 95%   ( 0.6476,  0.8590 )  
+#&gt; Calculations and Intervals on Original Scale
+#&gt; Some BCa intervals may be unstable
+```
+
+---
+
+layout: true
+
+# Multiplie Statistics
+
+---
+
+&lt;br&gt;
+
+The statistics function you provide can also return a vector. 
+
+
+```r
+# Statistic(s)
+bs &lt;- function(formula, data, indices) {
+  d &lt;- data[indices,] # allows boot to select sample
+  fit &lt;- lm(formula, data=d)
+  return(coef(fit))
+}
+
+# Boot
+results &lt;- boot(data=mtcars, statistic=bs,
+   R=1000, formula=mpg~wt+disp)
+```
+
+
+---
+
+
+```r
+plot(results, index=1) # intercept
+```
+
+&lt;img src="Tutorial-10_files/figure-html/unnamed-chunk-8-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+
+```r
+plot(results, index=2) # wt
+```
+
+&lt;img src="Tutorial-10_files/figure-html/unnamed-chunk-9-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+
+```r
+plot(results, index=3) # disp
+```
+
+&lt;img src="Tutorial-10_files/figure-html/unnamed-chunk-10-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+layout: true
+
+# Parametric Bootstrap
+
+---
+
+
+```r
+# Generate a dataframe, exponential distribution
+y &lt;- data.frame(list(sample = rexp(50)))
+
+# Describes how random values are to be generated.
+# It should be a function of two arguments. 
+# First argument should be the observed data 
+# Second argument consists of any other information needed (e.g. parameter estimates).
+
+expboot &lt;- function(x,B){
+  
+  y &lt;- x
+  y$sample &lt;- rexp(nrow(y), B)
+  y  
+}
+
+bootperc &lt;- function(y, p){
+  quantile(y$sample,p )
+}
+
+b2 &lt;- boot(y, bootperc, R=1000,
+           sim="parametric", ran.gen=expboot,
+           mle = mean(y$sample), p=.95)
+```
+
+---
+
+
+```r
+plot(b2)
+```
+
+&lt;img src="Tutorial-10_files/figure-html/unnamed-chunk-12-1.svg" style="display: block; margin: auto;" /&gt;
+
+---
+
+layout: true
+
+# Recommendations
+
+---
+
+
+&lt;br&gt;
+
+1. Get started on .hi-slate[Github], see Jenny Bryan's [guide](https://happygitwithr.com/). Will be very useful for tracking your own work flow, joint research and keeping up to date with recent developments across various programming languages. 
+
+--
+
+1. Develop your data wrangling and tidying skills. Check out `data.table`, Grant McDermott [introduces](https://raw.githack.com/uo-ec607/lectures/master/05-datatable/05-datatable.html#1). Very fast, no dependencies.
+
+--
+
+1. Beyond R, explore your research interests! Start reading papers, get acquainted with data sources in your prospective field(s).
+
+
+---
+
+### Highlighted Data Sources
+
+--
+
+* .hi-slate[IPUMS:] Publicly available individual level data from US censuses (every 10 years) and American Community Survey (Every year since 2000). Contains demographic and geographic information. Data are standarized and easy to work with. [Website](https://ipums.org/)
+
+--
+
+* .hi-slate[Stanford Open Policing:] Collects and standardizes data on vehicle and pedestrian stops from law enforcement departments across the country. Over 200 million records from dozens of state and local police departments. [Website](https://openpolicing.stanford.edu/data/)
+
+--
+
+* .hi-slate[BigQuery:] As part of the Google Cloud Platform, BigQuery is a fully-managed, serverless data warehouse that enables scalable analysis over petabytes of data. Wrangling big data will require some advanced data-sci skills. [See Grant's material](https://raw.githack.com/uo-ec607/lectures/master/16-databases/16-databases.html). 
+
+
+---
+
+### Efficient Lit Search
+
+--
+
+Log into .hi-pink[Web of Science] through the university's library portal. Very useful search features relative to the library itself, with ranking in order of citations available. Huge time saver. 
+
+--
+
+[Researcher](https://www.researcher-app.com/): A mobile app that works as a direct news feed for new publications. Simply prepare a list of preferred journals and stay informed on how your prospective field is developing. 
+
+--
+
+[Mendeley](https://www.mendeley.com/): Set up an account and immediately start creating libraries of readings through PDF's synced onto a private cloud-platform. Will help you keep track of papers, share material more easily with co-authors and jointly keep track of notes. 
+
+--
+
+For collecting my BibTeX references, I usually refer to [econpapers](https://econpapers.repec.org/). 
+
+
+---
+
+### Dissemination/Branding
+
+--
+
+* Its never too early to make a website, infact the sooner the better. You'll pick up more knowledge as time proceeds and have a banger come final year.
+
+--
+
+* I'd recommend checking out a [wowchemy guide](https://wowchemy.com/docs/getting-started/install/) on this. For a less hands-on approach, google sites if another popular option. 
+
+--
+
+* Be sure to hop on Twitter and keep informed on recent developments in your practice/field. I come across a lot of information on graduate student opportunities and conferences/seminars.
+
+--
+
+* Give me a shout if you have questions on any of these recommendations. 
+
+
+---
+
+exclude: true
+
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"highlightStyle": "github",
+"highlightLines": true,
+"countIncrementalSlides": false
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
