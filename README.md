@@ -133,3 +133,14 @@ Regression Discontinuity
 [.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_9/Tutorial-9.Rmd)
 
 ## Week 10
+
+Bootstrapping and Final Words
+
+1. Non-Parametric
+1. Multiple Statistics
+1. Parametric
+1. Future Research Tips
+
+**Content** [.html](https://rawcdn.githack.com/peconomi/spring2021_core_metrics_lab/2f63e5fb806798bad22d0ab2b71ba622acf6ff7c/Week_10/Tutorial-10.html) |
+[.Rmd](https://github.com/peconomi/spring2021_core_metrics_lab/blob/main/Week_10/Tutorial-10.Rmd)
+
